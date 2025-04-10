@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -51,6 +52,14 @@ export default {
 				card: {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
+				},
+				// Custom colors for Harimidhu Organic
+				organic: {
+					primary: '#4A7C59',
+					secondary: '#8FB996',
+					tertiary: '#AA8976',
+					light: '#F3F7F0',
+					dark: '#2C4C3B',
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',

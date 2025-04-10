@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,13 +18,45 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
-import { customers } from "@/data/mockData";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Customer } from "@/types";
+import { customersCollection } from "@/firebase";
+import { getDocs, deleteDoc, doc, collection, query, orderBy } from "firebase/firestore";
+import { db } from "@/firebase";
+import { toast } from "sonner";
 
 const Customers = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>(customers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setIsLoading(true);
+        const customersQuery = query(customersCollection, orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(customersQuery);
+        
+        const customersData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.().toISOString() || new Date().toISOString()
+        } as Customer));
+        
+        setCustomers(customersData);
+        setFilteredCustomers(customersData);
+      } catch (error) {
+        console.error("Error fetching customers:", error);
+        toast.error("Failed to load customers");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value.toLowerCase();
@@ -42,6 +73,28 @@ const Customers = () => {
       );
       setFilteredCustomers(filtered);
     }
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this customer?")) {
+      try {
+        await deleteDoc(doc(db, "customers", id));
+        setCustomers(prevCustomers => prevCustomers.filter(customer => customer.id !== id));
+        setFilteredCustomers(prevFiltered => prevFiltered.filter(customer => customer.id !== id));
+        toast.success("Customer deleted successfully");
+      } catch (error) {
+        console.error("Error deleting customer:", error);
+        toast.error("Failed to delete customer");
+      }
+    }
+  };
+
+  const handleViewCustomer = (id: string) => {
+    navigate(`/customers/${id}`);
+  };
+
+  const handleEditCustomer = (id: string) => {
+    navigate(`/customers/edit/${id}`);
   };
 
   return (
@@ -73,7 +126,11 @@ const Customers = () => {
             <CardTitle>All Customers</CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredCustomers.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+              </div>
+            ) : filteredCustomers.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -106,15 +163,24 @@ const Customers = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="flex items-center gap-2">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2"
+                              onClick={() => handleViewCustomer(customer.id)}
+                            >
                               <Eye className="h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2"
+                              onClick={() => handleEditCustomer(customer.id)}
+                            >
                               <Edit className="h-4 w-4" />
                               Edit Customer
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2 text-destructive focus:text-destructive">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteCustomer(customer.id)}
+                            >
                               <Trash2 className="h-4 w-4" />
                               Delete Customer
                             </DropdownMenuItem>

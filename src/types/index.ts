@@ -1,4 +1,3 @@
-
 export interface Customer {
   id: string;
   name: string;
@@ -27,31 +26,41 @@ export interface Product {
   stock?: number; // For backward compatibility
 }
 
-export interface Order {
-  id: string;
-  customerId: string;
-  customerName: string;
-  total: number;
-  status: 'pending' | 'processing' | 'out-for-delivery' | 'delivered';
-  items: OrderItem[];
-  createdAt: string;
+export interface OrderItem {
+  id?: string;
+  name: string;
+  price: number;
+  quantity: number;
+  productId: string;
 }
 
-export interface OrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  unitPrice: number;
+export interface Order {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  items: OrderItem[];
+  status: 'pending' | 'processing' | 'out-for-delivery' | 'delivered';
   total: number;
+  createdAt: number;
 }
 
 export interface Invoice {
   id: string;
   orderId: string;
   customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  items: OrderItem[];
   total: number;
-  paidStatus: 'paid' | 'unpaid';
-  createdAt: string;
+  paidStatus: "paid" | "unpaid";
+  paymentMethod?: string;
+  paymentDate?: number;
+  paymentReference?: string;
+  dueDate: number;
+  notes?: string;
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface DashboardStats {

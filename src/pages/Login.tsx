@@ -1,20 +1,25 @@
-
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { KeyRound, LogIn } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Navigate } from "react-router-dom";
 
 const Login = () => {
-  const navigate = useNavigate();
+  const { login, currentUser } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // If user is already logged in, redirect to dashboard
+  if (currentUser) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -24,7 +29,7 @@ const Login = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Form validation
@@ -32,21 +37,23 @@ const Login = () => {
       toast.error("Please fill in all fields");
       return;
     }
+
+    // Validate email domain
+    if (formData.email !== "harimidhuorganic@gmail.com") {
+      toast.error("Only harimidhuorganic@gmail.com is allowed to login");
+      return;
+    }
     
     setIsLoading(true);
     
-    // In a real application, this would be an API call to authenticate
-    // For demo purposes, we'll simply redirect after a short delay
-    setTimeout(() => {
-      // Mock credentials check - in a real app, this would be done on the server
-      if (formData.email === "admin@harimidhu.com" && formData.password === "password") {
-        toast.success("Login successful!");
-        navigate("/");
-      } else {
-        toast.error("Invalid credentials. Please try again.");
-      }
+    try {
+      await login(formData.email, formData.password);
+      // No need to navigate here as it's handled in the auth context
+    } catch (error: any) {
+      toast.error(error.message || "Login failed. Please try again.");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -74,7 +81,7 @@ const Login = () => {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="admin@harimidhu.com"
+                  placeholder="harimidhuorganic@gmail.com"
                   value={formData.email}
                   onChange={handleChange}
                   required
@@ -123,7 +130,7 @@ const Login = () => {
           <CardFooter className="justify-center text-center text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <KeyRound className="h-3 w-3" />
-              <span>Demo credentials: admin@harimidhu.com / password</span>
+              <span>Access restricted to harimidhuorganic@gmail.com</span>
             </div>
           </CardFooter>
         </Card>

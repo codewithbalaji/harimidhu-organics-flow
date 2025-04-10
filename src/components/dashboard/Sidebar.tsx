@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -14,8 +13,7 @@ import {
   X,
   LogOut
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -28,12 +26,11 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
+  const { logout, currentUser } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  const handleLogout = () => {
-    toast.success("Logged out successfully");
-    navigate("/login");
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -79,18 +76,18 @@ export function Sidebar() {
         </ul>
       </nav>
       
-      <div className="border-t border-sidebar-border p-4">
+      <div className="border-t border-sidebar-border p-2">
         <div className={cn(
           "flex items-center",
           collapsed ? "justify-center" : "space-x-3"
         )}>
           <div className="h-8 w-8 rounded-full bg-organic-secondary flex items-center justify-center text-sidebar-primary-foreground">
-            A
+            {currentUser?.email?.charAt(0).toUpperCase() || 'A'}
           </div>
           {!collapsed && (
             <div className="flex-1">
               <p className="text-sm font-medium text-sidebar-foreground">Admin</p>
-              <p className="text-xs text-sidebar-foreground/70">admin@harimidhu.com</p>
+              <p className="text-xs text-sidebar-foreground/70">{currentUser?.email || 'admin@harimidhu.com'}</p>
             </div>
           )}
           {!collapsed && (

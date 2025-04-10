@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,58 +18,74 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Search, Download, Eye, FileText, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-
-// Mock data for invoices
-const mockInvoices = [
-  {
-    id: "INV-001",
-    orderId: "ORD-001",
-    customerName: "Rahul Sharma",
-    total: 1250.75,
-    paidStatus: "paid",
-    createdAt: "2025-04-05T10:30:00Z",
-  },
-  {
-    id: "INV-002",
-    orderId: "ORD-003",
-    customerName: "Priya Patel",
-    total: 875.50,
-    paidStatus: "paid",
-    createdAt: "2025-04-03T14:15:00Z",
-  },
-  {
-    id: "INV-003",
-    orderId: "ORD-005",
-    customerName: "Ajay Singh",
-    total: 2340.25,
-    paidStatus: "unpaid",
-    createdAt: "2025-04-01T09:45:00Z",
-  },
-  {
-    id: "INV-004",
-    orderId: "ORD-007",
-    customerName: "Sunita Desai",
-    total: 950.00,
-    paidStatus: "paid",
-    createdAt: "2025-03-29T16:20:00Z",
-  },
-  {
-    id: "INV-005",
-    orderId: "ORD-008",
-    customerName: "Vikram Gupta",
-    total: 1780.60,
-    paidStatus: "unpaid",
-    createdAt: "2025-03-25T11:10:00Z",
-  },
-];
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Invoice } from "@/types";
+import { toast } from "sonner";
+import { invoicesCollection } from "@/firebase";
+import { getDocs, query, orderBy, where } from "firebase/firestore";
 
 const Invoices = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [filteredInvoices, setFilteredInvoices] = useState(mockInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
+  useEffect(() => {
+    // Check if there's an orderId in the URL parameters to generate an invoice
+    const orderId = searchParams.get("orderId");
+    if (orderId) {
+      generateInvoiceForOrder(orderId);
+    }
+  }, [searchParams]);
+
+  const fetchInvoices = async () => {
+    try {
+      setIsLoading(true);
+      const invoicesQuery = query(invoicesCollection, orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(invoicesQuery);
+      
+      const invoicesData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Invoice[];
+      
+      setInvoices(invoicesData);
+      setFilteredInvoices(invoicesData);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      toast.error("Failed to fetch invoices");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateInvoiceForOrder = async (orderId: string) => {
+    // Check if invoice already exists for this order
+    const existingInvoice = invoices.find(invoice => invoice.orderId === orderId);
+    if (existingInvoice) {
+      navigate(`/invoices/${existingInvoice.id}`);
+      return;
+    }
+
+    // If not, navigate to invoice creation page
+    navigate(`/invoices/generate/${orderId}`);
+  };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value.toLowerCase();
@@ -84,13 +99,13 @@ const Invoices = () => {
   };
 
   const filterInvoices = (query: string, status: string) => {
-    let filtered = [...mockInvoices];
+    let filtered = [...invoices];
     
     // Apply search filter
     if (query.trim() !== "") {
       filtered = filtered.filter(
         invoice =>
-          invoice.customerName.toLowerCase().includes(query) ||
+          (invoice.customerName && invoice.customerName.toLowerCase().includes(query)) ||
           invoice.id.toLowerCase().includes(query) ||
           invoice.orderId.toLowerCase().includes(query)
       );
@@ -103,6 +118,25 @@ const Invoices = () => {
     
     setFilteredInvoices(filtered);
   };
+
+  const handleViewInvoice = (invoiceId: string) => {
+    navigate(`/invoices/${invoiceId}`);
+  };
+
+  const handleDownloadInvoice = (invoice: Invoice) => {
+    toast.success(`Invoice #${invoice.id} downloaded`);
+    // In a real app, this would trigger the actual download
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout title="Invoices">
+        <div className="flex justify-center items-center h-40">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Invoices">
@@ -131,6 +165,7 @@ const Invoices = () => {
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
                 <SelectItem value="unpaid">Unpaid</SelectItem>
+                <SelectItem value="partially_paid">Partially Paid</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -169,22 +204,49 @@ const Invoices = () => {
                             "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
                             invoice.paidStatus === "paid" 
                               ? "bg-green-100 text-green-800" 
-                              : "bg-red-100 text-red-800"
+                              : invoice.paidStatus === "partially_paid"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
                           )}>
-                            {invoice.paidStatus === "paid" ? "Paid" : "Unpaid"}
+                            {invoice.paidStatus === "paid" 
+                              ? "Paid" 
+                              : invoice.paidStatus === "partially_paid" 
+                                ? "Partially Paid" 
+                                : "Unpaid"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                              <Eye className="h-4 w-4" />
-                              <span className="sr-only">View</span>
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                              <Download className="h-4 w-4" />
-                              <span className="sr-only">Download</span>
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => handleViewInvoice(invoice.id)}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Invoice
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => handleDownloadInvoice(invoice)}
+                              >
+                                <Download className="h-4 w-4" />
+                                Download PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => navigate(`/invoices/status/${invoice.id}`)}
+                              >
+                                <FileText className="h-4 w-4" />
+                                Update Status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}

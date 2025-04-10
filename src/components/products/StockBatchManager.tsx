@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { StockBatch } from "@/types";
+import { toast } from "sonner";
 
 interface StockBatchManagerProps {
   batches: StockBatch[];
@@ -30,6 +30,7 @@ const StockBatchManager = ({ batches, onChange }: StockBatchManagerProps) => {
 
   const handleAddBatch = () => {
     if (newBatch.quantity <= 0 || newBatch.cost_price <= 0) {
+      toast.error("Please enter valid quantity and cost price");
       return;
     }
 
@@ -40,12 +41,28 @@ const StockBatchManager = ({ batches, onChange }: StockBatchManagerProps) => {
       date_added: new Date().toISOString(),
     };
 
-    onChange([...batches, newBatchWithId]);
+    onChange([newBatchWithId, ...batches]);
     setNewBatch({ quantity: 0, cost_price: 0 });
   };
 
   const handleRemoveBatch = (id: string) => {
     onChange(batches.filter(batch => batch.id !== id));
+  };
+
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    setNewBatch(prev => ({
+      ...prev,
+      quantity: isNaN(value) ? 0 : value
+    }));
+  };
+
+  const handleCostPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setNewBatch(prev => ({
+      ...prev,
+      cost_price: isNaN(value) ? 0 : value
+    }));
   };
 
   return (
@@ -67,7 +84,7 @@ const StockBatchManager = ({ batches, onChange }: StockBatchManagerProps) => {
               type="number"
               min="1"
               value={newBatch.quantity || ''}
-              onChange={(e) => setNewBatch({ ...newBatch, quantity: parseInt(e.target.value) || 0 })}
+              onChange={handleQuantityChange}
               placeholder="Enter quantity"
             />
           </div>
@@ -79,7 +96,7 @@ const StockBatchManager = ({ batches, onChange }: StockBatchManagerProps) => {
               min="0.01"
               step="0.01"
               value={newBatch.cost_price || ''}
-              onChange={(e) => setNewBatch({ ...newBatch, cost_price: parseFloat(e.target.value) || 0 })}
+              onChange={handleCostPriceChange}
               placeholder="Enter cost price"
             />
           </div>

@@ -1,29 +1,27 @@
-
-import { useState } from "react";
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from 'react'
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Plus, Search, Edit, Trash2, AlertTriangle, Clipboard, PackageOpen } from "lucide-react";
-import { products } from "@/data/mockData";
-import { Link } from "react-router-dom";
-import { Product, StockBatch } from "@/types";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+} from '@/components/ui/select'
+import { Plus, Search, Edit, Trash2, AlertTriangle, PackageOpen } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Product, StockBatch } from '@/types'
+import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -31,82 +29,120 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table'
+import { productsCollection } from '@/firebase'
+import { getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
+import { db } from '@/firebase'
 
 const Products = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>(products);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [products, setProducts] = useState<Product[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get unique categories
-  const categories = ["all", ...new Set(products.map((product) => product.category))];
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true)
+        const productsQuery = query(productsCollection, orderBy('createdAt', 'desc'))
+        const querySnapshot = await getDocs(productsQuery)
+        
+        const productsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.().toISOString() || new Date().toISOString()
+        } as Product))
+        
+        setProducts(productsData)
+        setFilteredProducts(productsData)
+      } catch (error) {
+        console.error('Error fetching products:', error)
+        toast.error('Failed to load products')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchProducts()
+  }, [])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value.toLowerCase();
-    setSearchQuery(query);
-    filterProducts(query, categoryFilter);
-  };
+    const query = e.target.value.toLowerCase()
+    setSearchQuery(query)
+    filterProducts(query, categoryFilter)
+  }
 
   const handleCategoryChange = (value: string) => {
-    setCategoryFilter(value);
-    filterProducts(searchQuery, value);
-  };
+    setCategoryFilter(value)
+    filterProducts(searchQuery, value)
+  }
 
   const filterProducts = (query: string, category: string) => {
-    let filtered = [...products];
+    let filtered = [...products]
     
-    // Apply search filter
-    if (query.trim() !== "") {
+    if (query.trim() !== '') {
       filtered = filtered.filter(
         product =>
           product.name.toLowerCase().includes(query) ||
           product.description.toLowerCase().includes(query)
-      );
+      )
     }
     
-    // Apply category filter
-    if (category !== "all") {
-      filtered = filtered.filter(product => product.category === category);
+    if (category !== 'all') {
+      filtered = filtered.filter(product => product.category === category)
     }
     
-    setFilteredProducts(filtered);
-  };
+    setFilteredProducts(filtered)
+  }
 
   const getTotalStock = (product: Product): number => {
     if (product.stock_batches && product.stock_batches.length > 0) {
-      return product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0);
+      return product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
     }
-    return product.stock || 0;
-  };
+    return product.stock || 0
+  }
 
   const getAverageCostPrice = (product: Product): number => {
     if (product.stock_batches && product.stock_batches.length > 0) {
       const totalCost = product.stock_batches.reduce(
         (sum, batch) => sum + (batch.quantity * batch.cost_price), 0
-      );
-      const totalQuantity = getTotalStock(product);
-      return totalQuantity > 0 ? totalCost / totalQuantity : 0;
+      )
+      const totalQuantity = getTotalStock(product)
+      return totalQuantity > 0 ? totalCost / totalQuantity : 0
     }
-    return 0;
-  };
+    return 0
+  }
 
   const isLowStock = (product: Product): boolean => {
-    return getTotalStock(product) <= 10;
-  };
+    return getTotalStock(product) <= 10
+  }
 
-  const handleDelete = () => {
-    // In a real application, this would be an API call
-    toast.success(`Product "${selectedProduct?.name}" deleted successfully`);
-  };
+  const handleDelete = async (product: Product) => {
+    if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
+      try {
+        await deleteDoc(doc(db, 'products', product.id))
+        setProducts(prevProducts => prevProducts.filter(p => p.id !== product.id))
+        setFilteredProducts(prevFiltered => prevFiltered.filter(p => p.id !== product.id))
+        toast.success(`Product "${product.name}" deleted successfully`)
+      } catch (error) {
+        console.error('Error deleting product:', error)
+        toast.error('Failed to delete product')
+      }
+    }
+  }
 
   const openStockDetails = (product: Product) => {
-    setSelectedProduct(product);
-  };
+    setSelectedProduct(product)
+  }
 
   const closeStockDetails = () => {
-    setSelectedProduct(null);
-  };
+    setSelectedProduct(null)
+  }
+
+  // Get unique categories
+  const categories = ['all', ...new Set(products.map((product) => product.category))]
 
   return (
     <DashboardLayout title="Products">
@@ -134,7 +170,7 @@ const Products = () => {
               <SelectContent>
                 {categories.map((category) => (
                   <SelectItem key={category} value={category}>
-                    {category === "all" ? "All Categories" : category}
+                    {category === 'all' ? 'All Categories' : category}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -155,13 +191,18 @@ const Products = () => {
             <CardTitle>All Products</CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredProducts.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+              </div>
+            ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
                   <ProductCard 
                     key={product.id} 
                     product={product} 
                     onViewStockDetails={() => openStockDetails(product)}
+                    onDelete={() => handleDelete(product)}
                   />
                 ))}
               </div>
@@ -218,7 +259,7 @@ const Products = () => {
               </TableHeader>
               <TableBody>
                 {selectedProduct.stock_batches.map((batch) => {
-                  const margin = ((selectedProduct.price - batch.cost_price) / selectedProduct.price) * 100;
+                  const margin = ((selectedProduct.price - batch.cost_price) / selectedProduct.price) * 100
                   return (
                     <TableRow key={batch.id}>
                       <TableCell>{new Date(batch.date_added).toLocaleDateString()}</TableCell>
@@ -228,12 +269,12 @@ const Products = () => {
                         ₹{(batch.quantity * batch.cost_price).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={margin < 20 ? "text-red-500" : margin < 30 ? "text-amber-500" : "text-green-600"}>
+                        <span className={margin < 20 ? 'text-red-500' : margin < 30 ? 'text-amber-500' : 'text-green-600'}>
                           {margin.toFixed(1)}%
                         </span>
                       </TableCell>
                     </TableRow>
-                  );
+                  )
                 })}
               </TableBody>
             </Table>
@@ -251,25 +292,21 @@ const Products = () => {
         </DialogContent>
       </Dialog>
     </DashboardLayout>
-  );
-};
-
-interface ProductCardProps {
-  product: Product;
-  onViewStockDetails: () => void;
+  )
 }
 
-const ProductCard = ({ product, onViewStockDetails }: ProductCardProps) => {
+interface ProductCardProps {
+  product: Product
+  onViewStockDetails: () => void
+  onDelete: () => void
+}
+
+const ProductCard = ({ product, onViewStockDetails, onDelete }: ProductCardProps) => {
   const totalStock = product.stock_batches
     ? product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
-    : product.stock || 0;
+    : product.stock || 0
     
-  const isLowStock = totalStock <= 10;
-  
-  const handleDelete = () => {
-    // In a real application, this would be an API call
-    toast.success(`Product "${product.name}" deleted successfully`);
-  };
+  const isLowStock = totalStock <= 10
   
   return (
     <div className="group flex flex-col border rounded-lg overflow-hidden transition-all hover:shadow-md">
@@ -297,19 +334,19 @@ const ProductCard = ({ product, onViewStockDetails }: ProductCardProps) => {
         
         <div className="flex justify-between items-center">
           <span className={cn(
-            "text-xs px-2 py-1 rounded-full",
-            product.category === "Fruits" && "bg-orange-100 text-orange-800",
-            product.category === "Vegetables" && "bg-green-100 text-green-800",
-            product.category === "Oils" && "bg-yellow-100 text-yellow-800",
-            product.category === "Grains" && "bg-amber-100 text-amber-800",
-            product.category === "Sweeteners" && "bg-purple-100 text-purple-800",
+            'text-xs px-2 py-1 rounded-full',
+            product.category === 'Fruits' && 'bg-orange-100 text-orange-800',
+            product.category === 'Vegetables' && 'bg-green-100 text-green-800',
+            product.category === 'Oils' && 'bg-yellow-100 text-yellow-800',
+            product.category === 'Grains' && 'bg-amber-100 text-amber-800',
+            product.category === 'Sweeteners' && 'bg-purple-100 text-purple-800',
           )}>
             {product.category}
           </span>
           
           <span className={cn(
-            "text-xs font-medium",
-            isLowStock ? "text-red-600" : "text-muted-foreground"
+            'text-xs font-medium',
+            isLowStock ? 'text-red-600' : 'text-muted-foreground'
           )}>
             Stock: {totalStock}
           </span>
@@ -338,14 +375,14 @@ const ProductCard = ({ product, onViewStockDetails }: ProductCardProps) => {
           variant="outline" 
           size="sm" 
           className="gap-1 text-destructive border-destructive hover:bg-destructive/10"
-          onClick={handleDelete}
+          onClick={onDelete}
         >
           <Trash2 className="h-4 w-4" />
           Delete
         </Button>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Products;
+export default Products

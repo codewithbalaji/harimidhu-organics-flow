@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -16,9 +15,11 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Save } from "lucide-react";
-import { products } from "@/data/mockData";
 import { Product, StockBatch } from "@/types";
 import StockBatchManager from "@/components/products/StockBatchManager";
+import { productsCollection } from "@/firebase";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
 const EditProduct = () => {
   const navigate = useNavigate();
@@ -31,36 +32,46 @@ const EditProduct = () => {
     image: "",
   });
   const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   
   useEffect(() => {
-    // Find the product by ID
-    const product = products.find(product => product.id === id);
-    
-    if (product) {
-      setFormData({
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        category: product.category,
-        image: product.image,
-      });
-      
-      // Convert legacy stock to stock batches if needed
-      if (product.stock_batches) {
-        setStockBatches(product.stock_batches);
-      } else if (product.stock) {
-        // Create a default batch for legacy data
-        setStockBatches([{
-          id: crypto.randomUUID(),
-          quantity: product.stock,
-          cost_price: product.price * 0.7, // Assuming 30% margin as fallback
-          date_added: product.createdAt
-        }]);
+    const fetchProduct = async () => {
+      if (!id) return;
+
+      try {
+        setIsLoading(true);
+        const productDoc = await getDoc(doc(productsCollection, id));
+        
+        if (!productDoc.exists()) {
+          toast.error("Product not found");
+          navigate("/products");
+          return;
+        }
+
+        const productData = productDoc.data() as Product;
+        setFormData({
+          name: productData.name,
+          description: productData.description,
+          price: productData.price,
+          category: productData.category,
+          image: productData.image,
+        });
+        
+        if (productData.stock_batches) {
+          setStockBatches(productData.stock_batches);
+        }
+      } catch (error) {
+        console.error("Error fetching product:", error);
+        toast.error("Failed to load product");
+        navigate("/products");
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-      toast.error("Product not found");
-      navigate("/products");
-    }
+    };
+
+    fetchProduct();
   }, [id, navigate]);
 
   const handleChange = (
@@ -80,24 +91,78 @@ const EditProduct = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Reset error
+    setUploadError("");
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError("Image size exceeds 2MB limit");
+      toast.error("Image size exceeds 2MB limit");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const imageUrl = await uploadImageToCloudinary(file);
+      setFormData(prev => ({
+        ...prev,
+        image: imageUrl
+      }));
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setUploadError(error instanceof Error ? error.message : "Failed to upload image");
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form
     if (!formData.name || !formData.price || !formData.category) {
       toast.error("Please fill all required fields");
       return;
     }
-    
-    // In a real application, you would make an API call here with the stockBatches data
-    console.log("Updated product data:", { ...formData, stock_batches: stockBatches });
-    
-    toast.success("Product updated successfully!");
-    navigate("/products");
+
+    try {
+      setIsSaving(true);
+      
+      const productData = {
+        ...formData,
+        stock_batches: stockBatches,
+        updatedAt: serverTimestamp()
+      };
+
+      await updateDoc(doc(productsCollection, id), productData);
+      
+      toast.success("Product updated successfully!");
+      navigate("/products");
+    } catch (error) {
+      console.error("Error updating product:", error);
+      toast.error("Failed to update product");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Get unique categories for the dropdown
-  const categories = [...new Set(products.map((product) => product.category))];
+  const categories = ["Fruits", "Vegetables", "Oils", "Grains", "Sweeteners"];
+
+  if (isLoading) {
+    return (
+      <DashboardLayout title="Edit Product">
+        <div className="flex justify-center items-center h-64">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Edit Product">
@@ -173,16 +238,26 @@ const EditProduct = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="image">
-                    Image URL <span className="text-destructive">*</span>
+                    Image <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="image"
                     name="image"
-                    placeholder="Enter image URL"
-                    value={formData.image}
-                    onChange={handleChange}
-                    required
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={isLoading}
                   />
+                  {uploadError && <p className="text-xs text-destructive mt-1">{uploadError}</p>}
+                  {formData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={formData.image} 
+                        alt="Product preview" 
+                        className="w-32 h-32 object-cover rounded-md"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -210,9 +285,13 @@ const EditProduct = () => {
           />
 
           <div className="flex justify-end">
-            <Button type="submit" className="gap-2 bg-organic-primary hover:bg-organic-dark">
+            <Button 
+              type="submit" 
+              className="gap-2 bg-organic-primary hover:bg-organic-dark"
+              disabled={isSaving}
+            >
               <Save className="h-4 w-4" />
-              Update Product
+              {isSaving ? "Saving..." : "Update Product"}
             </Button>
           </div>
         </form>

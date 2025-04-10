@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,10 +21,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Search } from "lucide-react";
 import { Link } from "react-router-dom";
-import { customers, products } from "@/data/mockData";
-import { OrderItem } from "@/types";
+import { OrderItem, Customer, Product } from "@/types";
+import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
+import { getDocs, query, where, orderBy, addDoc, updateDoc, doc } from "firebase/firestore";
 
 const AddOrder = () => {
   const navigate = useNavigate();
@@ -33,9 +33,59 @@ const AddOrder = () => {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
+  useEffect(() => {
+    fetchCustomersAndProducts();
+  }, []);
+
+  const fetchCustomersAndProducts = async () => {
+    try {
+      setIsLoading(true);
+      const [customersSnapshot, productsSnapshot] = await Promise.all([
+        getDocs(customersCollection),
+        getDocs(productsCollection)
+      ]);
+
+      const customersData = customersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Customer[];
+
+      const productsData = productsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        stock: doc.data().stock_batches?.reduce((sum: number, batch: any) => sum + batch.quantity, 0) || 0
+      })) as Product[];
+
+      console.log('Fetched products:', productsData); // Debug log
+      setCustomers(customersData);
+      setProducts(productsData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to fetch customers and products");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredCustomers = customers.filter(customer =>
+    customer.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    customer.phone.includes(customerSearch)
+  );
+
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(productSearch.toLowerCase()) &&
+    (product.stock || 0) > 0
+  );
+
   // Calculate total
-  const total = items.reduce((sum, item) => sum + item.total, 0);
+  const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const handleAddItem = () => {
     if (!selectedProduct || quantity <= 0) {
@@ -46,17 +96,29 @@ const AddOrder = () => {
     const product = products.find(p => p.id === selectedProduct);
     if (!product) return;
 
+    const availableStock = product.stock || 0;
+    if (availableStock < quantity) {
+      toast.error(`Only ${availableStock} items available in stock`);
+      return;
+    }
+
     // Check if product already in items
     const existingItem = items.find(item => item.productId === selectedProduct);
     
     if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity;
+      if (availableStock < newQuantity) {
+        toast.error(`Only ${availableStock} items available in stock`);
+        return;
+      }
+      
       // Update quantity of existing item
       setItems(items.map(item => 
         item.productId === selectedProduct 
           ? { 
               ...item, 
-              quantity: item.quantity + quantity,
-              total: (item.quantity + quantity) * item.unitPrice
+              quantity: newQuantity,
+              price: product.price
             } 
           : item
       ));
@@ -64,10 +126,9 @@ const AddOrder = () => {
       // Add new item
       const newItem: OrderItem = {
         productId: product.id,
-        productName: product.name,
+        name: product.name,
         quantity: quantity,
-        unitPrice: product.price,
-        total: quantity * product.price
+        price: product.price
       };
       
       setItems([...items, newItem]);
@@ -76,16 +137,16 @@ const AddOrder = () => {
     // Reset selection
     setSelectedProduct("");
     setQuantity(1);
+    setProductSearch("");
   };
 
   const handleRemoveItem = (productId: string) => {
     setItems(items.filter(item => item.productId !== productId));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form
     if (!customerId) {
       toast.error("Please select a customer");
       return;
@@ -95,12 +156,80 @@ const AddOrder = () => {
       toast.error("Please add at least one product to the order");
       return;
     }
-    
-    // In a real application, you would make an API call here
-    // For now, let's just show a success message and redirect
-    toast.success("Order created successfully!");
-    navigate("/orders");
+
+    try {
+      setIsSubmitting(true);
+
+      // Get selected customer
+      const selectedCustomer = customers.find(c => c.id === customerId);
+      if (!selectedCustomer) {
+        toast.error("Customer not found");
+        return;
+      }
+
+      // Create order
+      const orderData = {
+        customerId,
+        customerName: selectedCustomer.name,
+        customerPhone: selectedCustomer.phone,
+        deliveryAddress: selectedCustomer.address,
+        items,
+        total,
+        status: "pending",
+        createdAt: Date.now()
+      };
+
+      const orderRef = await addDoc(ordersCollection, orderData);
+
+      // Update product stocks
+      const updatePromises = items.map(async (item) => {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) return;
+
+        // Update stock_batches using FIFO
+        const updatedBatches = [...(product.stock_batches || [])];
+        let remainingQuantity = item.quantity;
+
+        for (let i = 0; i < updatedBatches.length && remainingQuantity > 0; i++) {
+          const batch = updatedBatches[i];
+          if (batch.quantity > remainingQuantity) {
+            batch.quantity -= remainingQuantity;
+            remainingQuantity = 0;
+          } else {
+            remainingQuantity -= batch.quantity;
+            batch.quantity = 0;
+          }
+        }
+
+        // Remove empty batches
+        const filteredBatches = updatedBatches.filter(batch => batch.quantity > 0);
+
+        await updateDoc(doc(productsCollection, product.id), {
+          stock_batches: filteredBatches
+        });
+      });
+
+      await Promise.all(updatePromises);
+
+      toast.success("Order created successfully!");
+      navigate("/orders");
+    } catch (error) {
+      console.error("Error creating order:", error);
+      toast.error("Failed to create order");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout title="Create New Order">
+        <div className="flex justify-center items-center h-40">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Create New Order">
@@ -127,6 +256,15 @@ const AddOrder = () => {
                     <Label htmlFor="customer">
                       Select Customer <span className="text-destructive">*</span>
                     </Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search customers..."
+                        className="pl-9"
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                      />
+                    </div>
                     <Select 
                       value={customerId}
                       onValueChange={setCustomerId}
@@ -135,9 +273,9 @@ const AddOrder = () => {
                         <SelectValue placeholder="Select a customer" />
                       </SelectTrigger>
                       <SelectContent>
-                        {customers.map(customer => (
+                        {filteredCustomers.map(customer => (
                           <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
+                            {customer.name} - {customer.phone}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -174,17 +312,26 @@ const AddOrder = () => {
                   {/* Add Product Form */}
                   <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search products..."
+                          className="pl-9"
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                        />
+                      </div>
                       <Select 
                         value={selectedProduct}
                         onValueChange={setSelectedProduct}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Select a product" />
                         </SelectTrigger>
                         <SelectContent>
-                          {products.map(product => (
+                          {filteredProducts.map(product => (
                             <SelectItem key={product.id} value={product.id}>
-                              {product.name} - ₹{product.price}
+                              {product.name} - ₹{product.price} (Stock: {product.stock || 0})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -226,10 +373,10 @@ const AddOrder = () => {
                       <TableBody>
                         {items.map((item) => (
                           <TableRow key={item.productId}>
-                            <TableCell>{item.productName}</TableCell>
-                            <TableCell className="text-right">₹{item.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell>{item.name}</TableCell>
+                            <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                             <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right font-medium">₹{item.total.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-medium">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
                             <TableCell>
                               <Button
                                 type="button"
@@ -270,10 +417,10 @@ const AddOrder = () => {
               type="submit" 
               size="lg"
               className="gap-2 bg-organic-primary hover:bg-organic-dark"
-              disabled={!customerId || items.length === 0}
+              disabled={!customerId || items.length === 0 || isSubmitting}
             >
               <Save className="h-4 w-4" />
-              Create Order
+              {isSubmitting ? "Creating Order..." : "Create Order"}
             </Button>
           </div>
         </form>

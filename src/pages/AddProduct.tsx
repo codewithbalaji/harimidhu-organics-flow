@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -19,6 +18,9 @@ import { ArrowLeft, Save, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import StockBatchManager from "@/components/products/StockBatchManager";
 import { StockBatch } from "@/types";
+import { productsCollection } from "@/firebase";
+import { addDoc, serverTimestamp } from "firebase/firestore";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
 const AddProduct = () => {
   const navigate = useNavigate();
@@ -30,6 +32,8 @@ const AddProduct = () => {
     image: "",
   });
   const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -48,20 +52,66 @@ const AddProduct = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Reset error
+    setUploadError('');
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('Image size exceeds 2MB limit');
+      toast.error('Image size exceeds 2MB limit');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const imageUrl = await uploadImageToCloudinary(file);
+      setFormData(prev => ({
+        ...prev,
+        image: imageUrl
+      }));
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+      toast.error(error instanceof Error ? error.message : 'Failed to upload image');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form
-    if (!formData.name || !formData.price || !formData.category) {
+    if (!formData.name || !formData.price || !formData.category || !formData.image) {
       toast.error("Please fill all required fields");
       return;
     }
-    
-    // In a real application, you would make an API call here with the stockBatches data
-    console.log("Product data:", { ...formData, stock_batches: stockBatches });
-    
-    toast.success("Product added successfully!");
-    navigate("/products");
+
+    try {
+      setIsLoading(true);
+      
+      const productData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        stock_batches: stockBatches,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(productsCollection, productData);
+      
+      toast.success("Product added successfully!");
+      navigate("/products");
+    } catch (error) {
+      console.error("Error adding product:", error);
+      toast.error("Failed to add product");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -184,18 +234,10 @@ const AddProduct = () => {
                         type="file"
                         accept="image/*"
                         className="cursor-pointer"
-                        onChange={(e) => {
-                          // Handle image preview in a real app
-                          // For this demo, we'll just store the filename
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setFormData(prev => ({
-                              ...prev,
-                              image: URL.createObjectURL(file)
-                            }));
-                          }
-                        }}
+                        onChange={handleImageUpload}
+                        disabled={isLoading}
                       />
+                      {uploadError && <p className="text-xs text-destructive mt-1">{uploadError}</p>}
                       <p className="text-xs text-muted-foreground mt-1">
                         Recommended size: 600x600px. Max size: 2MB
                       </p>
@@ -218,9 +260,10 @@ const AddProduct = () => {
               type="submit" 
               size="lg"
               className="gap-2 bg-organic-primary hover:bg-organic-dark"
+              disabled={isLoading}
             >
               <Save className="h-4 w-4" />
-              Save Product
+              {isLoading ? "Saving..." : "Save Product"}
             </Button>
           </div>
         </form>

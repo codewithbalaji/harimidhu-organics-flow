@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -15,8 +14,9 @@ import { toast } from "sonner";
 import { ArrowLeft, Save } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { orders } from "@/data/mockData";
 import { Order } from "@/types";
+import { ordersCollection } from "@/firebase";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 const UpdateOrderStatus = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,28 +24,47 @@ const UpdateOrderStatus = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const statuses = ["pending", "processing", "out-for-delivery", "delivered"];
 
   useEffect(() => {
-    // Simulate API call to fetch order
-    setLoading(true);
-    const foundOrder = orders.find(o => o.id === id);
-    
-    setTimeout(() => {
-      if (foundOrder) {
-        setOrder(foundOrder);
-        setStatus(foundOrder.status);
-      }
-      setLoading(false);
-    }, 500);
+    fetchOrderDetails();
   }, [id]);
+
+  const fetchOrderDetails = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const orderDoc = await getDoc(doc(ordersCollection, id));
+      
+      if (orderDoc.exists()) {
+        const data = orderDoc.data();
+        const orderData = {
+          id: orderDoc.id,
+          ...data,
+          createdAt: data.createdAt || Date.now()
+        } as Order;
+        
+        setOrder(orderData);
+        setStatus(orderData.status || "pending");
+      } else {
+        toast.error("Order not found");
+      }
+    } catch (error) {
+      console.error("Error fetching order details:", error);
+      toast.error("Failed to fetch order details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
       <DashboardLayout title="Update Order Status">
         <div className="flex justify-center items-center h-40">
-          <p className="text-muted-foreground">Loading order information...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
         </div>
       </DashboardLayout>
     );
@@ -72,25 +91,39 @@ const UpdateOrderStatus = () => {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simulate API call to update order status
-    toast.success(`Order status updated to ${status.replace(/-/g, " ")}`);
+    if (!id) return;
     
-    // In a real app, you would update the order status in the database
-    // For now, we'll just navigate back to the orders page
-    navigate("/orders");
+    try {
+      setIsSubmitting(true);
+      
+      // Update order status in Firebase
+      await updateDoc(doc(ordersCollection, id), {
+        status: status
+      });
+      
+      toast.success(`Order status updated to ${status.replace(/-/g, " ")}`);
+      
+      // Navigate back to the order details page
+      navigate(`/orders/${id}`);
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      toast.error("Failed to update order status");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <DashboardLayout title={`Update Order #${order.id} Status`}>
       <div className="flex flex-col gap-6 max-w-md mx-auto">
         <div className="flex justify-start">
-          <Link to="/orders">
+          <Link to={`/orders/${order.id}`}>
             <Button variant="outline" size="sm" className="gap-2">
               <ArrowLeft className="h-4 w-4" />
-              Back to Orders
+              Back to Order Details
             </Button>
           </Link>
         </div>
@@ -110,7 +143,7 @@ const UpdateOrderStatus = () => {
                   order.status === "out-for-delivery" && "bg-purple-100 text-purple-800",
                   order.status === "delivered" && "bg-green-100 text-green-800",
                 )}>
-                  {order.status.replace(/-/g, " ")}
+                  {order.status?.replace(/-/g, " ") || "pending"}
                 </div>
               </div>
               
@@ -137,8 +170,8 @@ const UpdateOrderStatus = () => {
                 <p className="text-sm font-medium">Order Summary:</p>
                 <div className="space-y-1 text-sm">
                   <p><span className="font-medium">Order ID:</span> {order.id}</p>
-                  <p><span className="font-medium">Customer:</span> {order.customerName}</p>
-                  <p><span className="font-medium">Total:</span> ₹{order.total}</p>
+                  <p><span className="font-medium">Customer:</span> {order.customerName || "Customer"}</p>
+                  <p><span className="font-medium">Total:</span> ₹{order.total?.toFixed(2) || "0.00"}</p>
                   <p><span className="font-medium">Created:</span> {new Date(order.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
@@ -146,10 +179,10 @@ const UpdateOrderStatus = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-organic-primary hover:bg-organic-dark"
-                disabled={status === order.status}
+                disabled={status === order.status || isSubmitting}
               >
                 <Save className="mr-2 h-4 w-4" />
-                Update Status
+                {isSubmitting ? "Updating..." : "Update Status"}
               </Button>
             </form>
           </CardContent>

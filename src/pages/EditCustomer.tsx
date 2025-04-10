@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,19 +8,52 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Save } from "lucide-react";
-import { Link } from "react-router-dom";
-import { customersCollection } from "@/firebase";
-import { addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/firebase";
+import { Customer } from "@/types";
 
-const AddCustomer = () => {
+const EditCustomer = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     address: "",
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchCustomer = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const customerDoc = await getDoc(doc(db, "customers", id));
+        
+        if (customerDoc.exists()) {
+          const data = customerDoc.data();
+          setFormData({
+            name: data.name || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            address: data.address || "",
+          });
+        } else {
+          toast.error("Customer not found");
+          navigate("/customers");
+        }
+      } catch (error) {
+        console.error("Error fetching customer:", error);
+        toast.error("Failed to load customer details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomer();
+  }, [id, navigate]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -41,40 +74,52 @@ const AddCustomer = () => {
       return;
     }
     
+    if (!id) return;
+    
     try {
-      setIsLoading(true);
+      setIsSaving(true);
       
-      // Add customer to Firebase
-      await addDoc(customersCollection, {
+      // Update customer in Firebase
+      await updateDoc(doc(db, "customers", id), {
         ...formData,
-        createdAt: serverTimestamp()
+        updatedAt: new Date()
       });
       
-      toast.success("Customer added successfully!");
-      navigate("/customers");
+      toast.success("Customer updated successfully!");
+      navigate(`/customers/${id}`);
     } catch (error) {
-      console.error("Error adding customer:", error);
-      toast.error("Failed to add customer. Please try again.");
+      console.error("Error updating customer:", error);
+      toast.error("Failed to update customer. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout title="Edit Customer">
+        <div className="flex justify-center items-center h-40">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout title="Add New Customer">
+    <DashboardLayout title="Edit Customer">
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
-          <Link to="/customers">
+          <Link to={`/customers/${id}`}>
             <Button variant="outline" size="sm" className="gap-2">
               <ArrowLeft className="h-4 w-4" />
-              Back to Customers
+              Back to Customer
             </Button>
           </Link>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
+            <CardTitle>Edit Customer Information</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -139,17 +184,17 @@ const AddCustomer = () => {
                 <Button 
                   type="submit" 
                   className="gap-2 bg-organic-primary hover:bg-organic-dark"
-                  disabled={isLoading}
+                  disabled={isSaving}
                 >
-                  {isLoading ? (
+                  {isSaving ? (
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                      Saving...
+                      Updating...
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4" />
-                      Save Customer
+                      Update Customer
                     </>
                   )}
                 </Button>
@@ -162,4 +207,4 @@ const AddCustomer = () => {
   );
 };
 
-export default AddCustomer;
+export default EditCustomer; 

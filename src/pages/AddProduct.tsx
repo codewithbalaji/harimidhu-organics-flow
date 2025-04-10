@@ -1,0 +1,230 @@
+
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { ArrowLeft, Save, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const AddProduct = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    price: "",
+    stock: "",
+    category: "",
+    image: "",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSelectChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      category: value,
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate form
+    if (!formData.name || !formData.price || !formData.stock || !formData.category) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    
+    // In a real application, you would make an API call here
+    // For now, let's just show a success message and redirect
+    toast.success("Product added successfully!");
+    navigate("/products");
+  };
+
+  return (
+    <DashboardLayout title="Add New Product">
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <Link to="/products">
+            <Button variant="outline" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Products
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>Product Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="name">
+                    Product Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    placeholder="Enter product name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    placeholder="Enter product description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="price">
+                      Price (₹) <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="price"
+                      name="price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter price"
+                      value={formData.price}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="stock">
+                      Stock Quantity <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="stock"
+                      name="stock"
+                      type="number"
+                      min="0"
+                      placeholder="Enter stock quantity"
+                      value={formData.stock}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">
+                    Category <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.category}
+                    onValueChange={handleSelectChange}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Fruits">Fruits</SelectItem>
+                      <SelectItem value="Vegetables">Vegetables</SelectItem>
+                      <SelectItem value="Oils">Oils</SelectItem>
+                      <SelectItem value="Grains">Grains</SelectItem>
+                      <SelectItem value="Sweeteners">Sweeteners</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <Button type="submit" className="gap-2 bg-organic-primary hover:bg-organic-dark">
+                    <Save className="h-4 w-4" />
+                    Save Product
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Image</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center gap-4">
+                <div className="border rounded-md w-full aspect-square flex items-center justify-center bg-muted overflow-hidden">
+                  {formData.image ? (
+                    <img 
+                      src={formData.image} 
+                      alt="Product preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-muted-foreground text-center p-4">
+                      <Upload className="h-8 w-8 mx-auto mb-2" />
+                      <p>No image uploaded</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="w-full">
+                  <Label htmlFor="image" className="mb-2 block">Upload Image</Label>
+                  <Input
+                    id="image"
+                    name="image"
+                    type="file"
+                    accept="image/*"
+                    className="cursor-pointer"
+                    onChange={(e) => {
+                      // Handle image preview in a real app
+                      // For this demo, we'll just store the filename
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setFormData(prev => ({
+                          ...prev,
+                          image: URL.createObjectURL(file)
+                        }));
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Recommended size: 600x600px. Max size: 2MB
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default AddProduct;

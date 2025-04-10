@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,11 +26,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Plus, Search, MoreHorizontal, FileText, Eye, TruckIcon } from "lucide-react";
 import { orders } from "@/data/mockData";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Order } from "@/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const Orders = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filteredOrders, setFilteredOrders] = useState<Order[]>(orders);
@@ -52,7 +53,6 @@ const Orders = () => {
   const filterOrders = (query: string, status: string) => {
     let filtered = [...orders];
     
-    // Apply search filter
     if (query.trim() !== "") {
       filtered = filtered.filter(
         order =>
@@ -61,7 +61,6 @@ const Orders = () => {
       );
     }
     
-    // Apply status filter
     if (status !== "all") {
       filtered = filtered.filter(order => order.status === status);
     }
@@ -69,10 +68,24 @@ const Orders = () => {
     setFilteredOrders(filtered);
   };
 
+  const handleViewDetails = (orderId: string) => {
+    navigate(`/orders/${orderId}`);
+  };
+
+  const handleUpdateStatus = (orderId: string) => {
+    navigate(`/orders/status/${orderId}`);
+  };
+
+  const handleGenerateInvoice = (order: Order) => {
+    toast.success(`Invoice generated for order #${order.id}`, {
+      description: `Invoice for ${order.customerName} created successfully`,
+    });
+    navigate(`/invoices?orderId=${order.id}`);
+  };
+
   return (
     <DashboardLayout title="Orders">
       <div className="flex flex-col gap-6">
-        {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center flex-1">
             <div className="relative flex-1">
@@ -110,7 +123,6 @@ const Orders = () => {
           </Link>
         </div>
         
-        {/* Orders Table */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>All Orders</CardTitle>
@@ -155,15 +167,24 @@ const Orders = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="flex items-center gap-2">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 cursor-pointer"
+                              onClick={() => handleViewDetails(order.id)}
+                            >
                               <Eye className="h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 cursor-pointer"
+                              onClick={() => handleUpdateStatus(order.id)}
+                            >
                               <TruckIcon className="h-4 w-4" />
                               Update Status
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2">
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 cursor-pointer"
+                              onClick={() => handleGenerateInvoice(order)}
+                            >
                               <FileText className="h-4 w-4" />
                               Generate Invoice
                             </DropdownMenuItem>

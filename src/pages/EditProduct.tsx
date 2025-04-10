@@ -17,19 +17,20 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Save } from "lucide-react";
 import { products } from "@/data/mockData";
-import { Product } from "@/types";
+import { Product, StockBatch } from "@/types";
+import StockBatchManager from "@/components/products/StockBatchManager";
 
 const EditProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [formData, setFormData] = useState<Omit<Product, "id" | "createdAt">>({
+  const [formData, setFormData] = useState<Omit<Product, "id" | "createdAt" | "stock_batches">>({
     name: "",
     description: "",
     price: 0,
-    stock: 0,
     category: "",
     image: "",
   });
+  const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
   
   useEffect(() => {
     // Find the product by ID
@@ -40,10 +41,22 @@ const EditProduct = () => {
         name: product.name,
         description: product.description,
         price: product.price,
-        stock: product.stock,
         category: product.category,
         image: product.image,
       });
+      
+      // Convert legacy stock to stock batches if needed
+      if (product.stock_batches) {
+        setStockBatches(product.stock_batches);
+      } else if (product.stock) {
+        // Create a default batch for legacy data
+        setStockBatches([{
+          id: crypto.randomUUID(),
+          quantity: product.stock,
+          cost_price: product.price * 0.7, // Assuming 30% margin as fallback
+          date_added: product.createdAt
+        }]);
+      }
     } else {
       toast.error("Product not found");
       navigate("/products");
@@ -56,7 +69,7 @@ const EditProduct = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === "price" || name === "stock" ? Number(value) : value,
+      [name]: name === "price" ? Number(value) : value,
     }));
   };
 
@@ -76,8 +89,9 @@ const EditProduct = () => {
       return;
     }
     
-    // In a real application, you would make an API call here
-    // For now, let's just show a success message and redirect
+    // In a real application, you would make an API call here with the stockBatches data
+    console.log("Updated product data:", { ...formData, stock_batches: stockBatches });
+    
     toast.success("Product updated successfully!");
     navigate("/products");
   };
@@ -97,12 +111,12 @@ const EditProduct = () => {
           </Link>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit Product Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Product Information</CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="name">
@@ -120,7 +134,7 @@ const EditProduct = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="price">
-                    Price (₹) <span className="text-destructive">*</span>
+                    Selling Price (₹) <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="price"
@@ -130,22 +144,6 @@ const EditProduct = () => {
                     step="0.01"
                     placeholder="Enter price"
                     value={formData.price}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="stock">
-                    Stock Quantity <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="stock"
-                    name="stock"
-                    type="number"
-                    min="0"
-                    placeholder="Enter stock quantity"
-                    value={formData.stock}
                     onChange={handleChange}
                     required
                   />
@@ -202,16 +200,22 @@ const EditProduct = () => {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex justify-end pt-4">
-                <Button type="submit" className="gap-2 bg-organic-primary hover:bg-organic-dark">
-                  <Save className="h-4 w-4" />
-                  Update Product
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+          {/* Stock Batch Manager */}
+          <StockBatchManager 
+            batches={stockBatches}
+            onChange={setStockBatches}
+          />
+
+          <div className="flex justify-end">
+            <Button type="submit" className="gap-2 bg-organic-primary hover:bg-organic-dark">
+              <Save className="h-4 w-4" />
+              Update Product
+            </Button>
+          </div>
+        </form>
       </div>
     </DashboardLayout>
   );

@@ -8,15 +8,23 @@ export interface Customer {
   createdAt: string;
 }
 
+export interface StockBatch {
+  id: string;
+  quantity: number;
+  cost_price: number;
+  date_added: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   description: string;
   price: number;
-  stock: number;
+  stock_batches: StockBatch[];
   category: string;
   image: string;
   createdAt: string;
+  stock?: number; // For backward compatibility
 }
 
 export interface Order {

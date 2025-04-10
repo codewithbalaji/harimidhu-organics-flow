@@ -11,17 +11,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Trash2, AlertTriangle, Clipboard, PackageOpen } from "lucide-react";
 import { products } from "@/data/mockData";
 import { Link } from "react-router-dom";
-import { Product } from "@/types";
+import { Product, StockBatch } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const Products = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(products);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Get unique categories
   const categories = ["all", ...new Set(products.map((product) => product.category))];
@@ -55,6 +71,41 @@ const Products = () => {
     }
     
     setFilteredProducts(filtered);
+  };
+
+  const getTotalStock = (product: Product): number => {
+    if (product.stock_batches && product.stock_batches.length > 0) {
+      return product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0);
+    }
+    return product.stock || 0;
+  };
+
+  const getAverageCostPrice = (product: Product): number => {
+    if (product.stock_batches && product.stock_batches.length > 0) {
+      const totalCost = product.stock_batches.reduce(
+        (sum, batch) => sum + (batch.quantity * batch.cost_price), 0
+      );
+      const totalQuantity = getTotalStock(product);
+      return totalQuantity > 0 ? totalCost / totalQuantity : 0;
+    }
+    return 0;
+  };
+
+  const isLowStock = (product: Product): boolean => {
+    return getTotalStock(product) <= 10;
+  };
+
+  const handleDelete = () => {
+    // In a real application, this would be an API call
+    toast.success(`Product "${selectedProduct?.name}" deleted successfully`);
+  };
+
+  const openStockDetails = (product: Product) => {
+    setSelectedProduct(product);
+  };
+
+  const closeStockDetails = () => {
+    setSelectedProduct(null);
   };
 
   return (
@@ -107,7 +158,11 @@ const Products = () => {
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard 
+                    key={product.id} 
+                    product={product} 
+                    onViewStockDetails={() => openStockDetails(product)}
+                  />
                 ))}
               </div>
             ) : (
@@ -118,12 +173,98 @@ const Products = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Stock Details Dialog */}
+      <Dialog open={!!selectedProduct} onOpenChange={closeStockDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Stock Batches - {selectedProduct?.name}</DialogTitle>
+            <DialogDescription>
+              View all stock batches with their cost prices and quantities
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-muted/30 rounded-lg p-4 text-center">
+              <h3 className="text-xs text-muted-foreground mb-1">Total Stock</h3>
+              <p className="text-2xl font-semibold">
+                {selectedProduct ? getTotalStock(selectedProduct) : 0}
+              </p>
+            </div>
+            <div className="bg-muted/30 rounded-lg p-4 text-center">
+              <h3 className="text-xs text-muted-foreground mb-1">Selling Price</h3>
+              <p className="text-2xl font-semibold">
+                ₹{selectedProduct?.price.toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-muted/30 rounded-lg p-4 text-center">
+              <h3 className="text-xs text-muted-foreground mb-1">Avg. Cost Price</h3>
+              <p className="text-2xl font-semibold">
+                ₹{selectedProduct ? getAverageCostPrice(selectedProduct).toFixed(2) : '0.00'}
+              </p>
+            </div>
+          </div>
+          
+          {selectedProduct?.stock_batches && selectedProduct.stock_batches.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date Added</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Cost Price</TableHead>
+                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Margin %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedProduct.stock_batches.map((batch) => {
+                  const margin = ((selectedProduct.price - batch.cost_price) / selectedProduct.price) * 100;
+                  return (
+                    <TableRow key={batch.id}>
+                      <TableCell>{new Date(batch.date_added).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">{batch.quantity}</TableCell>
+                      <TableCell className="text-right">₹{batch.cost_price.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        ₹{(batch.quantity * batch.cost_price).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={margin < 20 ? "text-red-500" : margin < 30 ? "text-amber-500" : "text-green-600"}>
+                          {margin.toFixed(1)}%
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-6 border rounded-md bg-muted/50">
+              {selectedProduct?.stock ? (
+                <p className="text-muted-foreground">
+                  Legacy stock data: {selectedProduct.stock} units
+                </p>
+              ) : (
+                <p className="text-muted-foreground">No stock batches available for this product.</p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
 
-const ProductCard = ({ product }: { product: Product }) => {
-  const isLowStock = product.stock <= 10;
+interface ProductCardProps {
+  product: Product;
+  onViewStockDetails: () => void;
+}
+
+const ProductCard = ({ product, onViewStockDetails }: ProductCardProps) => {
+  const totalStock = product.stock_batches
+    ? product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
+    : product.stock || 0;
+    
+  const isLowStock = totalStock <= 10;
   
   const handleDelete = () => {
     // In a real application, this would be an API call
@@ -170,18 +311,29 @@ const ProductCard = ({ product }: { product: Product }) => {
             "text-xs font-medium",
             isLowStock ? "text-red-600" : "text-muted-foreground"
           )}>
-            Stock: {product.stock}
+            Stock: {totalStock}
           </span>
         </div>
       </div>
       
       <div className="border-t p-3 flex justify-between">
-        <Link to={`/products/edit/${product.id}`}>
-          <Button variant="outline" size="sm" className="gap-1">
-            <Edit className="h-4 w-4" />
-            Edit
+        <div className="flex gap-2">
+          <Link to={`/products/edit/${product.id}`}>
+            <Button variant="outline" size="sm" className="gap-1">
+              <Edit className="h-4 w-4" />
+              Edit
+            </Button>
+          </Link>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-1"
+            onClick={onViewStockDetails}
+          >
+            <PackageOpen className="h-4 w-4" />
+            Stock
           </Button>
-        </Link>
+        </div>
         <Button 
           variant="outline" 
           size="sm" 

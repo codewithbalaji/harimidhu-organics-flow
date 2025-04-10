@@ -11,8 +11,11 @@ import {
   BarChart3, 
   Menu, 
   Home,
-  X
+  X,
+  LogOut
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -25,7 +28,13 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = () => {
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
 
   return (
     <div className={cn(
@@ -79,10 +88,20 @@ export function Sidebar() {
             A
           </div>
           {!collapsed && (
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-sidebar-foreground">Admin</p>
               <p className="text-xs text-sidebar-foreground/70">admin@harimidhu.com</p>
             </div>
+          )}
+          {!collapsed && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-sidebar-foreground"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           )}
         </div>
       </div>

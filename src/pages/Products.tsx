@@ -16,6 +16,7 @@ import { products } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { Product } from "@/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const Products = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -124,6 +125,11 @@ const Products = () => {
 const ProductCard = ({ product }: { product: Product }) => {
   const isLowStock = product.stock <= 10;
   
+  const handleDelete = () => {
+    // In a real application, this would be an API call
+    toast.success(`Product "${product.name}" deleted successfully`);
+  };
+  
   return (
     <div className="group flex flex-col border rounded-lg overflow-hidden transition-all hover:shadow-md">
       <div className="relative h-48 bg-muted">
@@ -170,11 +176,18 @@ const ProductCard = ({ product }: { product: Product }) => {
       </div>
       
       <div className="border-t p-3 flex justify-between">
-        <Button variant="outline" size="sm" className="gap-1">
-          <Edit className="h-4 w-4" />
-          Edit
-        </Button>
-        <Button variant="outline" size="sm" className="gap-1 text-destructive border-destructive hover:bg-destructive/10">
+        <Link to={`/products/edit/${product.id}`}>
+          <Button variant="outline" size="sm" className="gap-1">
+            <Edit className="h-4 w-4" />
+            Edit
+          </Button>
+        </Link>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-1 text-destructive border-destructive hover:bg-destructive/10"
+          onClick={handleDelete}
+        >
           <Trash2 className="h-4 w-4" />
           Delete
         </Button>

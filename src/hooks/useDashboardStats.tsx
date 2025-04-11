@@ -1,8 +1,20 @@
-
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
 import { db, customersCollection, productsCollection, ordersCollection } from '@/firebase';
-import { DashboardStats, Product, Order } from '@/types';
+import { Product, Order } from '@/types';
+
+// Define DashboardStats interface locally if not exported from types
+interface DashboardStats {
+  totalSales: number;
+  totalOrders: number;
+  totalCustomers: number;
+  lowStockItems: number;
+}
+
+// Define a stronger typed version of Order with specific date type
+interface ProcessedOrder extends Omit<Order, 'createdAt'> {
+  createdAt: Date;
+}
 
 export const useDashboardStats = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -47,11 +59,24 @@ export const useDashboardStats = () => {
         // Get recent orders
         const ordersQuery = query(ordersCollection, orderBy("createdAt", "desc"), limit(5));
         const ordersSnapshot = await getDocs(ordersQuery);
-        const ordersData = ordersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt
-        } as Order));
+        const ordersData = ordersSnapshot.docs.map(doc => {
+          const data = doc.data();
+          // Normalize createdAt to Date object
+          let createdAt: Date;
+          if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate();
+          } else if (data.createdAt) {
+            createdAt = new Date(data.createdAt);
+          } else {
+            createdAt = new Date();
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            createdAt
+          } as unknown as Order;
+        });
         
         setRecentOrders(ordersData);
         
@@ -59,16 +84,33 @@ export const useDashboardStats = () => {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
-        const recentOrdersQuery = query(
-          ordersCollection,
-          where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo))
-        );
+        // Get all orders without timestamp filter first
+        const allOrdersQuery = query(ordersCollection, orderBy("createdAt", "desc"));
+        const allOrdersSnapshot = await getDocs(allOrdersQuery);
         
-        const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
-        const recentOrdersData = recentOrdersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Order));
+        const allOrdersData = allOrdersSnapshot.docs.map(doc => {
+          const data = doc.data();
+          // Normalize createdAt to Date object
+          let createdAt: Date;
+          if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate();
+          } else if (data.createdAt) {
+            createdAt = new Date(data.createdAt);
+          } else {
+            createdAt = new Date();
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            createdAt
+          } as ProcessedOrder;
+        });
+        
+        // Filter orders for last 30 days
+        const recentOrdersData = allOrdersData.filter(order => {
+          return order.createdAt >= thirtyDaysAgo;
+        });
         
         // Calculate total sales from orders
         const totalSales = recentOrdersData.reduce((sum, order) => sum + (order.total || 0), 0);
@@ -77,23 +119,11 @@ export const useDashboardStats = () => {
         const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         const weeklySalesMap = new Map(dayNames.map(day => [day, 0]));
         
-        // Group orders by day of week
-        recentOrdersData.forEach(order => {
+        // Group all orders by day of week
+        allOrdersData.forEach(order => {
           if (!order.createdAt) return;
           
-          // Handle both timestamp and number formats
-          let orderDate;
-          if (typeof order.createdAt === 'number') {
-            orderDate = new Date(order.createdAt);
-          } else if (order.createdAt.toDate) {
-            // Handle Firestore Timestamp
-            orderDate = order.createdAt.toDate();
-          } else {
-            // Try to parse whatever we have
-            orderDate = new Date(order.createdAt);
-          }
-          
-          const dayName = dayNames[orderDate.getDay()];
+          const dayName = dayNames[order.createdAt.getDay()];
           weeklySalesMap.set(dayName, (weeklySalesMap.get(dayName) || 0) + (order.total || 0));
         });
         

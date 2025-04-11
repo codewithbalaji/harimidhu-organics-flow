@@ -20,26 +20,23 @@ import {
   ArrowRight,
   Plus,
 } from "lucide-react";
-import { dashboardStats, orders, products } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-
-// Sample data for the chart
-const salesData = [
-  { name: "Mon", sales: 1200 },
-  { name: "Tue", sales: 1900 },
-  { name: "Wed", sales: 1500 },
-  { name: "Thu", sales: 2400 },
-  { name: "Fri", sales: 2200 },
-  { name: "Sat", sales: 3000 },
-  { name: "Sun", sales: 2100 },
-];
+import { useDashboardStats } from "@/hooks/useDashboardStats";
 
 const Dashboard = () => {
-  const lowStockProducts = products.filter((product) => product.stock <= 10);
-  const recentOrders = [...orders].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  ).slice(0, 5);
+  const { stats, isLoading, salesData, recentOrders, lowStockProducts } = useDashboardStats();
+
+  // If dashboard is loading, show loading indicator
+  if (isLoading) {
+    return (
+      <DashboardLayout title="Dashboard">
+        <div className="flex items-center justify-center h-[80vh]">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Dashboard">
@@ -48,28 +45,28 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
             title="Total Sales"
-            value={`₹${dashboardStats.totalSales}`}
+            value={`₹${stats.totalSales}`}
             icon={<TrendingUp className="h-6 w-6" />}
             description="Last 30 days"
             className="bg-blue-50 border-blue-100"
           />
           <StatsCard
             title="Total Orders"
-            value={dashboardStats.totalOrders.toString()}
+            value={stats.totalOrders.toString()}
             icon={<ClipboardList className="h-6 w-6" />}
             description="Last 30 days"
             className="bg-green-50 border-green-100"
           />
           <StatsCard
             title="Total Customers"
-            value={dashboardStats.totalCustomers.toString()}
+            value={stats.totalCustomers.toString()}
             icon={<Users className="h-6 w-6" />}
             description="Last 30 days"
             className="bg-purple-50 border-purple-100"
           />
           <StatsCard
             title="Low Stock Items"
-            value={dashboardStats.lowStockItems.toString()}
+            value={stats.lowStockItems.toString()}
             icon={<AlertTriangle className="h-6 w-6" />}
             description="Needs attention"
             className="bg-orange-50 border-orange-100"
@@ -166,29 +163,36 @@ const Dashboard = () => {
             <CardContent>
               <div className="space-y-4">
                 {lowStockProducts.length > 0 ? (
-                  lowStockProducts.map((product) => (
-                    <div key={product.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
-                          <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+                  lowStockProducts.map((product) => {
+                    // Calculate total stock across all batches
+                    const totalStock = product.stock_batches 
+                      ? product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
+                      : (product.stock || 0);
+                      
+                    return (
+                      <div key={product.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
+                            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {product.category} · ₹{product.price}
+                            </p>
+                          </div>
                         </div>
                         <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {product.category} · ₹{product.price}
-                          </p>
+                          <span className={cn(
+                            "text-xs px-2 py-1 rounded-full",
+                            totalStock <= 5 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
+                          )}>
+                            {totalStock} left
+                          </span>
                         </div>
                       </div>
-                      <div>
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded-full",
-                          product.stock <= 5 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
-                        )}>
-                          {product.stock} left
-                        </span>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-center text-muted-foreground py-4">All products have sufficient stock</p>
                 )}

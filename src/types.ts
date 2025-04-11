@@ -1,3 +1,4 @@
+
 // Customer type
 export interface Customer {
   id: string;
@@ -21,11 +22,11 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  stock?: number; // Legacy field
-  stock_batches?: StockBatch[];
+  stock_batches: StockBatch[];
   category: string;
   image: string;
   createdAt: string;
+  stock?: number; // Legacy field
 }
 
 // Order types

@@ -1,4 +1,3 @@
-
 import { Customer, Product, Order, Invoice, DashboardStats } from "@/types";
 
 // Mock Customers
@@ -52,7 +51,9 @@ export const products: Product[] = [
     name: "Organic Apples",
     description: "Fresh organic apples from Himalayan farms",
     price: 180,
-    stock: 35,
+    stock_batches: [
+      { id: "b1", quantity: 35, cost_price: 120, date_added: "2024-01-05T10:00:00Z" }
+    ],
     category: "Fruits",
     image: "/placeholder.svg",
     createdAt: "2024-01-05T10:00:00Z",
@@ -62,7 +63,9 @@ export const products: Product[] = [
     name: "Organic Tomatoes",
     description: "Pesticide-free tomatoes grown naturally",
     price: 60,
-    stock: 5,
+    stock_batches: [
+      { id: "b2", quantity: 5, cost_price: 40, date_added: "2024-01-06T11:00:00Z" }
+    ],
     category: "Vegetables",
     image: "/placeholder.svg",
     createdAt: "2024-01-06T11:00:00Z",
@@ -72,7 +75,9 @@ export const products: Product[] = [
     name: "Extra Virgin Olive Oil",
     description: "Cold-pressed organic olive oil",
     price: 450,
-    stock: 15,
+    stock_batches: [
+      { id: "b3", quantity: 15, cost_price: 300, date_added: "2024-01-07T12:00:00Z" }
+    ],
     category: "Oils",
     image: "/placeholder.svg",
     createdAt: "2024-01-07T12:00:00Z",
@@ -82,7 +87,9 @@ export const products: Product[] = [
     name: "Brown Rice",
     description: "Unpolished organic brown rice",
     price: 120,
-    stock: 25,
+    stock_batches: [
+      { id: "b4", quantity: 25, cost_price: 80, date_added: "2024-01-08T13:00:00Z" }
+    ],
     category: "Grains",
     image: "/placeholder.svg",
     createdAt: "2024-01-08T13:00:00Z",
@@ -92,7 +99,9 @@ export const products: Product[] = [
     name: "Fresh Spinach",
     description: "Organically grown leafy spinach",
     price: 40,
-    stock: 8,
+    stock_batches: [
+      { id: "b5", quantity: 8, cost_price: 25, date_added: "2024-01-09T14:00:00Z" }
+    ],
     category: "Vegetables",
     image: "/placeholder.svg",
     createdAt: "2024-01-09T14:00:00Z",
@@ -102,7 +111,9 @@ export const products: Product[] = [
     name: "Organic Honey",
     description: "Raw and unfiltered forest honey",
     price: 350,
-    stock: 12,
+    stock_batches: [
+      { id: "b6", quantity: 12, cost_price: 250, date_added: "2024-01-10T15:00:00Z" }
+    ],
     category: "Sweeteners",
     image: "/placeholder.svg",
     createdAt: "2024-01-10T15:00:00Z",
@@ -115,22 +126,28 @@ export const orders: Order[] = [
     id: "o1",
     customerId: "c1",
     customerName: "Arjun Sharma",
+    customerPhone: "9876543210",
+    deliveryAddress: "123 Green Park, Delhi",
     total: 720,
     status: "delivered",
     items: [
       {
         productId: "p1",
-        productName: "Organic Apples",
+        name: "Organic Apples",
+        price: 180,
         quantity: 2,
+        productName: "Organic Apples",
         unitPrice: 180,
         total: 360,
       },
       {
         productId: "p3",
-        productName: "Extra Virgin Olive Oil",
+        name: "Extra Virgin Olive Oil",
+        price: 450,
         quantity: 1,
-        unitPrice: 350,
-        total: 350,
+        productName: "Extra Virgin Olive Oil",
+        unitPrice: 450,
+        total: 450,
       },
     ],
     createdAt: "2024-03-28T10:00:00Z",
@@ -139,15 +156,16 @@ export const orders: Order[] = [
     id: "o2",
     customerId: "c2",
     customerName: "Priya Patel",
+    customerPhone: "8765432109",
+    deliveryAddress: "456 Eco Village, Mumbai",
     total: 240,
     status: "processing",
     items: [
       {
         productId: "p4",
-        productName: "Brown Rice",
+        name: "Brown Rice",
+        price: 120,
         quantity: 2,
-        unitPrice: 120,
-        total: 240,
       },
     ],
     createdAt: "2024-04-01T12:00:00Z",
@@ -156,20 +174,26 @@ export const orders: Order[] = [
     id: "o3",
     customerId: "c3",
     customerName: "Raj Kumar",
+    customerPhone: "7654321098",
+    deliveryAddress: "789 Nature View, Bangalore",
     total: 500,
     status: "pending",
     items: [
       {
         productId: "p2",
-        productName: "Organic Tomatoes",
+        name: "Organic Tomatoes",
+        price: 60,
         quantity: 5,
+        productName: "Organic Tomatoes",
         unitPrice: 60,
         total: 300,
       },
       {
         productId: "p5",
-        productName: "Fresh Spinach",
+        name: "Fresh Spinach",
+        price: 40,
         quantity: 5,
+        productName: "Fresh Spinach",
         unitPrice: 40,
         total: 200,
       },
@@ -184,17 +208,39 @@ export const invoices: Invoice[] = [
     id: "i1",
     orderId: "o1",
     customerName: "Arjun Sharma",
+    customerPhone: "9876543210",
+    deliveryAddress: "123 Green Park, Delhi",
+    items: [
+      {
+        productId: "p1",
+        name: "Organic Apples",
+        price: 180,
+        quantity: 2,
+      }
+    ],
     total: 720,
     paidStatus: "paid",
-    createdAt: "2024-03-28T10:30:00Z",
+    dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    createdAt: Date.now(),
   },
   {
     id: "i2",
     orderId: "o2",
     customerName: "Priya Patel",
+    customerPhone: "8765432109",
+    deliveryAddress: "456 Eco Village, Mumbai",
+    items: [
+      {
+        productId: "p4",
+        name: "Brown Rice",
+        price: 120,
+        quantity: 2,
+      }
+    ],
     total: 240,
     paidStatus: "unpaid",
-    createdAt: "2024-04-01T12:30:00Z",
+    dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    createdAt: Date.now(),
   },
 ];
 

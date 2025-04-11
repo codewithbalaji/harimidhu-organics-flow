@@ -50,7 +50,7 @@ export const useDashboardStats = () => {
         const ordersData = ordersSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          createdAt: doc.data().createdAt || Date.now()
+          createdAt: doc.data().createdAt
         } as Order));
         
         setRecentOrders(ordersData);
@@ -63,9 +63,14 @@ export const useDashboardStats = () => {
           ordersCollection,
           where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo))
         );
-        const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
-        const recentOrdersData = recentOrdersSnapshot.docs.map(doc => doc.data() as Order);
         
+        const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
+        const recentOrdersData = recentOrdersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Order));
+        
+        // Calculate total sales from orders
         const totalSales = recentOrdersData.reduce((sum, order) => sum + (order.total || 0), 0);
         
         // Generate weekly sales data
@@ -74,7 +79,20 @@ export const useDashboardStats = () => {
         
         // Group orders by day of week
         recentOrdersData.forEach(order => {
-          const orderDate = new Date(order.createdAt);
+          if (!order.createdAt) return;
+          
+          // Handle both timestamp and number formats
+          let orderDate;
+          if (typeof order.createdAt === 'number') {
+            orderDate = new Date(order.createdAt);
+          } else if (order.createdAt.toDate) {
+            // Handle Firestore Timestamp
+            orderDate = order.createdAt.toDate();
+          } else {
+            // Try to parse whatever we have
+            orderDate = new Date(order.createdAt);
+          }
+          
           const dayName = dayNames[orderDate.getDay()];
           weeklySalesMap.set(dayName, (weeklySalesMap.get(dayName) || 0) + (order.total || 0));
         });
@@ -97,6 +115,12 @@ export const useDashboardStats = () => {
           totalOrders: recentOrdersData.length,
           totalCustomers,
           lowStockItems: lowStockItems.length
+        });
+        
+        console.log('Dashboard stats:', {
+          totalSales,
+          totalOrders: recentOrdersData.length,
+          salesData: orderedWeeklySalesData
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);

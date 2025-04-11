@@ -1,3 +1,4 @@
+
 export interface Customer {
   id: string;
   name: string;
@@ -32,17 +33,21 @@ export interface OrderItem {
   price: number;
   quantity: number;
   productId: string;
+  productName?: string;
+  unitPrice?: number;
+  total?: number;
 }
 
 export interface Order {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerId?: string;
   deliveryAddress: string;
   items: OrderItem[];
   status: 'pending' | 'processing' | 'out-for-delivery' | 'delivered';
   total: number;
-  createdAt: number;
+  createdAt: any; // Using 'any' to accommodate different timestamp formats
 }
 
 export interface Invoice {

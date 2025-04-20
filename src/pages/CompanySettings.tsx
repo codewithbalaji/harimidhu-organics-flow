@@ -20,6 +20,10 @@ const CompanySettings = () => {
     email: '',
     phone: '',
     taxRate: '0',
+    gstin: '',
+    paymentTerms: 'Immediate',
+    signature: '',
+    notes: 'Thank you for your business.'
   })
   const [isLoading, setIsLoading] = useState(false)
 
@@ -34,15 +38,69 @@ const CompanySettings = () => {
       const docSnap = await getDoc(docRef)
       
       if (docSnap.exists()) {
-        setCompanyInfo(docSnap.data() as typeof companyInfo)
+        // Ensure all properties have values, using defaults for missing ones
+        const data = docSnap.data()
+        setCompanyInfo({
+          name: data.name || '',
+          owner: data.owner || '',
+          logo: data.logo || '',
+          address: data.address || '',
+          city: data.city || '',
+          country: data.country || 'India',
+          email: data.email || '',
+          phone: data.phone || '',
+          taxRate: data.taxRate || '0',
+          gstin: data.gstin || '',
+          paymentTerms: data.paymentTerms || 'Immediate',
+          signature: data.signature || '',
+          notes: data.notes || 'Thank you for your business.'
+        })
       } else {
         // If not in Firebase, try localStorage as fallback
         const savedInfo = localStorage.getItem('companyInfo')
         if (savedInfo) {
-          const parsedInfo = JSON.parse(savedInfo)
-          setCompanyInfo(parsedInfo)
-          // Save to Firebase for future use
-          await setDoc(doc(db, 'companySettings', 'default'), parsedInfo)
+          try {
+            const parsedInfo = JSON.parse(savedInfo)
+            // Ensure default values for any missing properties
+            setCompanyInfo(prevInfo => ({
+              ...prevInfo,
+              ...parsedInfo,
+              name: parsedInfo.name || '',
+              owner: parsedInfo.owner || '',
+              logo: parsedInfo.logo || '',
+              address: parsedInfo.address || '',
+              city: parsedInfo.city || '',
+              country: parsedInfo.country || 'India',
+              email: parsedInfo.email || '',
+              phone: parsedInfo.phone || '',
+              taxRate: parsedInfo.taxRate || '0',
+              gstin: parsedInfo.gstin || '',
+              paymentTerms: parsedInfo.paymentTerms || 'Immediate',
+              signature: parsedInfo.signature || '',
+              notes: parsedInfo.notes || 'Thank you for your business.'
+            }))
+            // Save to Firebase for future use
+            await setDoc(doc(db, 'companySettings', 'default'), {
+              ...companyInfo,
+              ...parsedInfo,
+              name: parsedInfo.name || '',
+              owner: parsedInfo.owner || '',
+              logo: parsedInfo.logo || '',
+              address: parsedInfo.address || '',
+              city: parsedInfo.city || '',
+              country: parsedInfo.country || 'India',
+              email: parsedInfo.email || '',
+              phone: parsedInfo.phone || '',
+              taxRate: parsedInfo.taxRate || '0',
+              gstin: parsedInfo.gstin || '',
+              paymentTerms: parsedInfo.paymentTerms || 'Immediate',
+              signature: parsedInfo.signature || '',
+              notes: parsedInfo.notes || 'Thank you for your business.'
+            })
+          } catch (error) {
+            console.error('Error parsing company info:', error)
+            toast.error('Failed to parse company information')
+          }
         }
       }
     } catch (error) {
@@ -115,6 +173,28 @@ const CompanySettings = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="gstin">GSTIN</Label>
+                  <Input
+                    id="gstin"
+                    name="gstin"
+                    placeholder="33ABCDE1234F1Z5"
+                    value={companyInfo.gstin}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentTerms">Payment Terms</Label>
+                  <Input
+                    id="paymentTerms"
+                    name="paymentTerms"
+                    placeholder="Immediate, Net 30, etc."
+                    value={companyInfo.paymentTerms}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
@@ -149,6 +229,17 @@ const CompanySettings = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="signature">Signature Image URL</Label>
+                  <Input
+                    id="signature"
+                    name="signature"
+                    placeholder="https://example.com/signature.png"
+                    value={companyInfo.signature}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="taxRate">Tax Rate (%)</Label>
                   <Input
                     id="taxRate"
@@ -159,6 +250,17 @@ const CompanySettings = () => {
                     step="0.1"
                     placeholder="Enter tax rate (e.g. 5)"
                     value={companyInfo.taxRate}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Invoice Notes</Label>
+                  <Input
+                    id="notes"
+                    name="notes"
+                    placeholder="Thank you for your business."
+                    value={companyInfo.notes}
                     onChange={handleChange}
                   />
                 </div>
@@ -231,7 +333,7 @@ const CompanySettings = () => {
             <div className="border rounded-lg p-6 bg-white">
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-4">
                     {companyInfo.logo ? (
                       <img 
                         src={companyInfo.logo} 
@@ -248,21 +350,52 @@ const CompanySettings = () => {
                         {companyInfo.name?.charAt(0) || 'H'}
                       </div>
                     )}
+                    <h2 className="text-xl font-bold text-gray-700 uppercase">{companyInfo.name || 'Harimidhu Organic'}</h2>
                   </div>
-                  <h2 className="text-xl font-medium text-gray-700 mt-2">{companyInfo.name || 'Harimidhu Organic'}</h2>
-                  <p className="text-sm text-gray-600 mt-1">{companyInfo.owner || 'Karthick G'}</p>
-                  <p className="text-sm text-gray-600">{companyInfo.address || 'Company\'s Address'}</p>
+                  <p className="text-sm text-gray-600 mt-1">{companyInfo.address || 'Company\'s Address'}</p>
                   <p className="text-sm text-gray-600">{companyInfo.city || 'City, State Zip'}</p>
                   <p className="text-sm text-gray-600">{companyInfo.country || 'India'}</p>
+                  {companyInfo.gstin && (
+                    <p className="text-sm text-gray-600 mt-1">GSTIN: {companyInfo.gstin}</p>
+                  )}
                   <p className="text-sm text-gray-600 mt-2">{companyInfo.email || 'company@example.com'}</p>
                   <p className="text-sm text-gray-600">{companyInfo.phone || '+91 1234567890'}</p>
                 </div>
                 <div className="text-right">
-                  <h1 className="text-3xl font-bold text-gray-700">INVOICE</h1>
+                  <h1 className="text-3xl font-bold text-gray-700">TAX INVOICE</h1>
                   <div className="mt-4">
-                    <div className="text-sm text-gray-600">Tax Rate:</div>
-                    <div className="text-sm text-blue-600">{companyInfo.taxRate || '0'}%</div>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
+                      <div className="text-gray-600 text-right">Invoice #:</div>
+                      <div className="text-blue-600 text-right">INV00001</div>
+                      <div className="text-gray-600 text-right">Invoice Date:</div>
+                      <div className="text-right">01/01/2023</div>
+                      <div className="text-gray-600 text-right">Payment Terms:</div>
+                      <div className="text-right">{companyInfo.paymentTerms || 'Immediate'}</div>
+                    </div>
                   </div>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t flex justify-between items-end">
+                <div>
+                  <p className="text-sm text-gray-600">{companyInfo.notes}</p>
+                </div>
+                <div className="text-right">
+                  {companyInfo.signature ? (
+                    <div className="flex flex-col items-center">
+                      <img 
+                        src={companyInfo.signature} 
+                        alt="Authorized Signature" 
+                        className="h-12 object-contain mb-1"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <p className="text-xs font-medium text-gray-600">Authorized Signature</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-600">Authorized Signature</p>
+                  )}
                 </div>
               </div>
             </div>

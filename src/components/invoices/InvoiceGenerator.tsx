@@ -95,11 +95,11 @@ const InvoiceGenerator = () => {
         items: order.items,
         total: order.total,
         paidStatus: paymentStatus,
-        paymentMethod: paymentMethod || undefined,
+        paymentMethod: paymentMethod || "",
         paymentDate: paymentDate ? new Date(paymentDate).getTime() : undefined,
-        paymentReference: paymentReference || undefined,
+        paymentReference: paymentReference || "",
         dueDate: new Date(dueDate).getTime(),
-        notes: notes || undefined,
+        notes: notes || "",
         createdAt: Date.now()
       };
       
@@ -130,7 +130,13 @@ const InvoiceGenerator = () => {
     
     try {
       // Get company info from localStorage or use defaults
-      const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
+      const savedInfo = localStorage.getItem('companyInfo');
+      const companyInfo = savedInfo ? JSON.parse(savedInfo) : {};
+      
+      // Ensure the custom notes from the invoice are used
+      if (invoice.notes) {
+        companyInfo.notes = invoice.notes;
+      }
       
       // Generate PDF
       const doc = generateInvoicePdf(invoice, companyInfo);

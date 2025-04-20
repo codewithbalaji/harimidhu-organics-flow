@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Order } from "@/types";
 import { ordersCollection } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { Label } from "@/components/ui/label";
 
 const OrderDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -162,13 +163,21 @@ const OrderDetails = () => {
               <CardTitle>Delivery Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Address</span>
-                <span className="text-right">{order.deliveryAddress}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Phone</span>
-                <span>{order.customerPhone}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Delivery Address</Label>
+                  <p className="text-sm text-muted-foreground">{order?.deliveryAddress}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Customer Phone</Label>
+                  <p className="text-sm text-muted-foreground">{order?.customerPhone}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Coordinates</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {order?.latitude}, {order?.longitude}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

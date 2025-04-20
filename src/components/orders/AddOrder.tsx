@@ -25,7 +25,7 @@ import { ArrowLeft, Plus, Save, Trash2, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrderItem, Customer, Product } from "@/types";
 import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
-import { getDocs, query, where, orderBy, addDoc, updateDoc, doc } from "firebase/firestore";
+import { getDocs, query, where, orderBy, addDoc, updateDoc, doc, getDoc } from "firebase/firestore";
 
 const AddOrder = () => {
   const navigate = useNavigate();
@@ -167,6 +167,10 @@ const AddOrder = () => {
         return;
       }
 
+      // Get customer data to include latitude and longitude
+      const customerDoc = await getDoc(doc(customersCollection, selectedCustomer.id));
+      const customerData = customerDoc.data();
+      
       // Create order
       const orderData = {
         customerId,
@@ -176,7 +180,10 @@ const AddOrder = () => {
         items,
         total,
         status: "pending",
-        createdAt: Date.now()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        latitude: customerData?.latitude || 0,
+        longitude: customerData?.longitude || 0
       };
 
       const orderRef = await addDoc(ordersCollection, orderData);

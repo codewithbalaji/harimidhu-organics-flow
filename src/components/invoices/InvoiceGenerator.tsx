@@ -13,11 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Save, FileText } from "lucide-react";
+import { ArrowLeft, Save, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Order, Invoice } from "@/types";
 import { ordersCollection, invoicesCollection } from "@/firebase";
 import { doc, getDoc, addDoc } from "firebase/firestore";
+import { generateInvoicePdf } from "@/utils/pdfUtils";
 
 const InvoiceGenerator = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -27,12 +28,15 @@ const InvoiceGenerator = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("unpaid");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentDate, setPaymentDate] = useState<string>("");
+  const [paymentReference, setPaymentReference] = useState<string>("");
   const [dueDate, setDueDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 14); // 14 days from now
     return date.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState("");
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     if (orderId) {
@@ -71,15 +75,18 @@ const InvoiceGenerator = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!order) return;
+    if (!order) {
+      toast.error("Order information is required");
+      return;
+    }
     
     try {
       setIsSubmitting(true);
       
-      // Create the invoice
+      // Create invoice data
       const invoiceData = {
         orderId: order.id,
         customerName: order.customerName,
@@ -88,23 +95,52 @@ const InvoiceGenerator = () => {
         items: order.items,
         total: order.total,
         paidStatus: paymentStatus,
-        paymentMethod,
+        paymentMethod: paymentMethod || undefined,
+        paymentDate: paymentDate ? new Date(paymentDate).getTime() : undefined,
+        paymentReference: paymentReference || undefined,
         dueDate: new Date(dueDate).getTime(),
-        notes,
+        notes: notes || undefined,
         createdAt: Date.now()
       };
       
-      const invoiceRef = await addDoc(invoicesCollection, invoiceData);
+      // Add invoice to Firestore
+      const docRef = await addDoc(invoicesCollection, invoiceData);
+      
+      // Make a complete invoice object with the ID
+      const newInvoice = {
+        id: docRef.id,
+        ...invoiceData
+      };
+      
+      // Store for download function
+      setInvoice(newInvoice);
       
       toast.success("Invoice generated successfully!");
-      
-      // Navigate to the invoice details page
-      navigate(`/invoices/${invoiceRef.id}`);
+      navigate(`/invoices/${docRef.id}`);
     } catch (error) {
       console.error("Error generating invoice:", error);
       toast.error("Failed to generate invoice");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!invoice) return;
+    
+    try {
+      // Get company info from localStorage or use defaults
+      const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}');
+      
+      // Generate PDF
+      const doc = generateInvoicePdf(invoice, companyInfo);
+      
+      // Save the PDF
+      doc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`);
+      toast.success('Invoice downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF. Please try again.');
     }
   };
 
@@ -149,7 +185,7 @@ const InvoiceGenerator = () => {
           <h2 className="text-2xl font-bold">Generate Invoice for Order #{order.id}</h2>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={submitForm}>
           <div className="grid gap-6">
             <Card>
               <CardHeader>
@@ -261,6 +297,28 @@ const InvoiceGenerator = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="paymentDate">Payment Date</Label>
+                    <Input
+                      id="paymentDate"
+                      type="date"
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      disabled={paymentStatus !== "paid"}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="paymentReference">Payment Reference</Label>
+                    <Input
+                      id="paymentReference"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      placeholder="Reference number or transaction ID"
+                      disabled={paymentStatus !== "paid"}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="dueDate">Due Date</Label>
                     <Input
                       id="dueDate"
@@ -292,6 +350,19 @@ const InvoiceGenerator = () => {
               >
                 <FileText className="h-4 w-4" />
                 {isSubmitting ? "Generating..." : "Generate Invoice"}
+              </Button>
+            </div>
+
+            <div className="flex justify-end">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={handleDownloadPdf}
+                disabled={!invoice || isSubmitting}
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
               </Button>
             </div>
           </div>

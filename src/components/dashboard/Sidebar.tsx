@@ -11,7 +11,8 @@ import {
   Menu, 
   Home,
   X,
-  LogOut
+  LogOut,
+  Settings
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -22,6 +23,7 @@ const navItems = [
   { name: "Orders", href: "/orders", icon: ClipboardList },
   { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+  { name: "Settings", href: "/settings/company", icon: Settings },
 ];
 
 export function Sidebar() {

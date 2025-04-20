@@ -22,6 +22,7 @@ import UpdateInvoiceStatus from "./components/invoices/UpdateInvoiceStatus";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import CompanySettings from "./pages/CompanySettings";
 import PrivateRoute from "./components/PrivateRoute";
 import { AuthProvider } from "./context/AuthContext";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/invoices/status/:id" element={<UpdateInvoiceStatus />} />
               <Route path="/invoices/:id" element={<ViewInvoice />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/settings/company" element={<CompanySettings />} />
             </Route>
             
             {/* Catch-all route */}

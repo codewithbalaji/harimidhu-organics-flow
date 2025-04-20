@@ -1,4 +1,34 @@
-# Welcome to your Lovable project
+# Harimidhu Organics Flow
+
+A comprehensive management system for Harimidhu Organics that handles customers, products, orders, and invoices.
+
+## Invoice System Features
+
+The system now includes a robust invoice management system with PDF generation capabilities:
+
+- **Professional PDF Invoices**: Generate and download professional-looking PDF invoices that match the standard invoice format.
+- **Customizable Company Information**: Update company details through the settings page to be displayed on invoices.
+- **Multiple Download Options**: Download PDF invoices from the invoice details page, invoice generator, or invoice list.
+- **Complete Information**: Invoices include customer details, item details, payment information, and notes.
+
+## How to Use Invoice PDF Generation
+
+1. Navigate to an existing invoice or create a new one from an order.
+2. Click the "Download PDF" button to generate and download a professional PDF invoice.
+3. Customize your company information in Settings > Company Information to appear on the invoice header.
+
+## System Requirements
+
+- Node.js 18 or higher
+- NPM or Yarn package manager
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Start development server: `npm run dev`
+4. Access the application at http://localhost:8080
 
 ## Project info
 

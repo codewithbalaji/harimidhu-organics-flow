@@ -32,6 +32,7 @@ import { Invoice } from "@/types";
 import { toast } from "sonner";
 import { invoicesCollection } from "@/firebase";
 import { getDocs, query, orderBy, where } from "firebase/firestore";
+import { generateInvoicePdf } from "@/utils/pdfUtils";
 
 const Invoices = () => {
   const navigate = useNavigate();
@@ -123,9 +124,19 @@ const Invoices = () => {
     navigate(`/invoices/${invoiceId}`);
   };
 
-  const handleDownloadInvoice = (invoice: Invoice) => {
-    toast.success(`Invoice #${invoice.id} downloaded`);
-    // In a real app, this would trigger the actual download
+  const handleDownloadInvoice = async (invoice: Invoice) => {
+    try {
+      // Generate and download the PDF
+      const doc = await generateInvoicePdf(invoice);
+      
+      // Save the PDF with the invoice ID
+      doc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`);
+      
+      toast.success(`Invoice downloaded successfully!`);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast.error('Failed to download invoice. Please try again.');
+    }
   };
 
   if (isLoading) {

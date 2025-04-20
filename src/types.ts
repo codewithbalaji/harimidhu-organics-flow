@@ -1,4 +1,3 @@
-
 // Customer type
 export interface Customer {
   id: string;
@@ -6,6 +5,8 @@ export interface Customer {
   email: string;
   phone: string;
   address: string;
+  latitude: number;
+  longitude: number;
   createdAt: string;
 }
 

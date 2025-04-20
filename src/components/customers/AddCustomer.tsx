@@ -19,6 +19,8 @@ const AddCustomer = () => {
     email: "",
     phone: "",
     address: "",
+    latitude: null,
+    longitude: null
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,6 +49,8 @@ const AddCustomer = () => {
       // Add customer to Firebase
       await addDoc(customersCollection, {
         ...formData,
+        latitude: Number(formData.latitude),
+        longitude: Number(formData.longitude),
         createdAt: serverTimestamp()
       });
       
@@ -131,6 +135,32 @@ const AddCustomer = () => {
                     value={formData.address}
                     onChange={handleChange}
                     rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="latitude">Latitude</Label>
+                  <Input
+                    id="latitude"
+                    name="latitude"
+                    type="number"
+                    step="any"
+                    placeholder="Enter latitude"
+                    value={formData.latitude}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="longitude">Longitude</Label>
+                  <Input
+                    id="longitude"
+                    name="longitude"
+                    type="number"
+                    step="any"
+                    placeholder="Enter longitude"
+                    value={formData.longitude}
+                    onChange={handleChange}
                   />
                 </div>
               </div>

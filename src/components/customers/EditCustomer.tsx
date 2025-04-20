@@ -20,6 +20,8 @@ const EditCustomer = () => {
     email: "",
     phone: "",
     address: "",
+    latitude: 0,
+    longitude: 0
   });
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +41,8 @@ const EditCustomer = () => {
             email: data.email || "",
             phone: data.phone || "",
             address: data.address || "",
+            latitude: data.latitude || 0,
+            longitude: data.longitude || 0
           });
         } else {
           toast.error("Customer not found");
@@ -82,6 +86,8 @@ const EditCustomer = () => {
       // Update customer in Firebase
       await updateDoc(doc(db, "customers", id), {
         ...formData,
+        latitude: Number(formData.latitude),
+        longitude: Number(formData.longitude),
         updatedAt: new Date()
       });
       
@@ -176,6 +182,32 @@ const EditCustomer = () => {
                     value={formData.address}
                     onChange={handleChange}
                     rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="latitude">Latitude</Label>
+                  <Input
+                    id="latitude"
+                    name="latitude"
+                    type="number"
+                    step="any"
+                    placeholder="Enter latitude"
+                    value={formData.latitude}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="longitude">Longitude</Label>
+                  <Input
+                    id="longitude"
+                    name="longitude"
+                    type="number"
+                    step="any"
+                    placeholder="Enter longitude"
+                    value={formData.longitude}
+                    onChange={handleChange}
                   />
                 </div>
               </div>

@@ -192,11 +192,12 @@ const AddProduct = () => {
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Fruits">Fruits</SelectItem>
-                            <SelectItem value="Vegetables">Vegetables</SelectItem>
-                            <SelectItem value="Oils">Oils</SelectItem>
-                            <SelectItem value="Grains">Grains</SelectItem>
-                            <SelectItem value="Sweeteners">Sweeteners</SelectItem>
+                            <SelectItem value="Oil">Oil</SelectItem>
+                            <SelectItem value="Rice">Rice</SelectItem>
+                            <SelectItem value="Millet">Millet</SelectItem>
+                            <SelectItem value="Provisions">Provisions</SelectItem>
+                            <SelectItem value="Homemade Soaps">Homemade Soaps</SelectItem>
+                            <SelectItem value="Chekku Raw Materials">Chekku Raw Materials</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

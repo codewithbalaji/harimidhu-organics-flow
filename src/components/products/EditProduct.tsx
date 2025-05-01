@@ -152,7 +152,7 @@ const EditProduct = () => {
   };
 
   // Get unique categories for the dropdown
-  const categories = ["Fruits", "Vegetables", "Oils", "Grains", "Sweeteners"];
+  const categories = ["Oil", "Rice", "Millet", "Provisions", "Homemade Soaps", "Chekku Raw Materials"];
 
   if (isLoading) {
     return (

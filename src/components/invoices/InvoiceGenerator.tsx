@@ -96,7 +96,7 @@ const InvoiceGenerator = () => {
         total: order.total,
         paidStatus: paymentStatus,
         paymentMethod: paymentMethod || "",
-        paymentDate: paymentDate ? new Date(paymentDate).getTime() : undefined,
+        paymentDate: paymentStatus === 'paid' && paymentDate ? new Date(paymentDate).getTime() : null,
         paymentReference: paymentReference || "",
         dueDate: new Date(dueDate).getTime(),
         notes: notes || "",
@@ -309,7 +309,6 @@ const InvoiceGenerator = () => {
                       type="date"
                       value={paymentDate}
                       onChange={(e) => setPaymentDate(e.target.value)}
-                      disabled={paymentStatus !== "paid"}
                     />
                   </div>
 

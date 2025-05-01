@@ -335,11 +335,12 @@ const ProductCard = ({ product, onViewStockDetails, onDelete }: ProductCardProps
         <div className="flex justify-between items-center">
           <span className={cn(
             'text-xs px-2 py-1 rounded-full',
-            product.category === 'Fruits' && 'bg-orange-100 text-orange-800',
-            product.category === 'Vegetables' && 'bg-green-100 text-green-800',
-            product.category === 'Oils' && 'bg-yellow-100 text-yellow-800',
-            product.category === 'Grains' && 'bg-amber-100 text-amber-800',
-            product.category === 'Sweeteners' && 'bg-purple-100 text-purple-800',
+            product.category === 'Oil' && 'bg-yellow-100 text-yellow-800',
+            product.category === 'Rice' && 'bg-amber-100 text-amber-800',
+            product.category === 'Millet' && 'bg-orange-100 text-orange-800',
+            product.category === 'Provisions' && 'bg-green-100 text-green-800',
+            product.category === 'Homemade Soaps' && 'bg-purple-100 text-purple-800',
+            product.category === 'Chekku Raw Materials' && 'bg-blue-100 text-blue-800',
           )}>
             {product.category}
           </span>

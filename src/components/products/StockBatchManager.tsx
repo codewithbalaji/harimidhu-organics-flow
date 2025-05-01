@@ -123,7 +123,7 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
   };
 
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value);
+    const value = parseFloat(e.target.value);
     setNewBatch(prev => ({
       ...prev,
       quantity: isNaN(value) ? 0 : value
@@ -142,7 +142,7 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
     // Mark that we've made an edit
     isInitialEditRef.current = false;
     
-    const value = parseInt(e.target.value);
+    const value = parseFloat(e.target.value);
     setEditForm(prev => ({
       ...prev,
       quantity: isNaN(value) ? 0 : value
@@ -169,6 +169,11 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
     return `${day}/${month}/${year}`;
   };
 
+  // Format number to display with 2 decimal places
+  const formatNumber = (num: number) => {
+    return num.toFixed(2);
+  };
+
   return (
     <div className="space-y-4">
       {editingBatchId !== null && (
@@ -183,7 +188,8 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
           <Input
             id="quantity"
             type="number"
-            min="1"
+            min="0.01"
+            step="0.01"
             value={newBatch.quantity || ''}
             onChange={handleQuantityChange}
             placeholder="Enter quantity"
@@ -217,7 +223,7 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="font-medium">Stock Batches</h3>
           <span className="text-sm text-muted-foreground">
-            Total Stock: {totalStock}
+            Total Stock: {formatNumber(totalStock)}
           </span>
         </div>
 
@@ -243,7 +249,8 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
                       <TableCell>
                         <Input
                           type="number"
-                          min="1"
+                          min="0.01"
+                          step="0.01"
                           value={editForm.quantity}
                           onChange={handleEditQuantityChange}
                           className="w-20"
@@ -261,7 +268,7 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        ₹{(editForm.quantity * editForm.cost_price).toFixed(2)}
+                        ₹{formatNumber(editForm.quantity * editForm.cost_price)}
                       </TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button
@@ -286,10 +293,10 @@ const StockBatchManager = ({ batches, onChange, onEditStatusChange }: StockBatch
                     </>
                   ) : (
                     <>
-                      <TableCell className="text-right">{batch.quantity}</TableCell>
-                      <TableCell className="text-right">₹{batch.cost_price.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(batch.quantity)}</TableCell>
+                      <TableCell className="text-right">₹{formatNumber(batch.cost_price)}</TableCell>
                       <TableCell className="text-right">
-                        ₹{(batch.quantity * batch.cost_price).toFixed(2)}
+                        ₹{formatNumber(batch.quantity * batch.cost_price)}
                       </TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button

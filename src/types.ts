@@ -13,7 +13,7 @@ export interface Customer {
 // Product types
 export interface StockBatch {
   id: string;
-  quantity: number;
+  quantity: number; // Can be a decimal/float value
   cost_price: number;
   date_added: string;
 }
@@ -34,7 +34,7 @@ export interface Product {
 export interface OrderItem {
   productId: string;
   productName: string;
-  quantity: number;
+  quantity: number; // Can be a decimal/float value
   unitPrice: number;
   total: number;
 }

@@ -34,6 +34,7 @@ const AddProduct = () => {
   });
   const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEditingBatch, setIsEditingBatch] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
   const handleChange = (
@@ -87,6 +88,11 @@ const AddProduct = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isEditingBatch) {
+      toast.error("Please save or cancel your stock batch changes first");
+      return;
+    }
+    
     if (!formData.name || !formData.price || !formData.category || !formData.image) {
       toast.error("Please fill all required fields");
       return;
@@ -95,10 +101,26 @@ const AddProduct = () => {
     try {
       setIsLoading(true);
       
+      // Format dates in stock batches to DD/MM/YY format
+      const formattedStockBatches = stockBatches.map(batch => {
+        // Convert the ISO string date to a Date object
+        const dateObj = new Date(batch.date_added);
+        
+        // Format as DD/MM/YY
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const year = String(dateObj.getFullYear()).slice(-2);
+        
+        return {
+          ...batch,
+          date_added: `${day}/${month}/${year}`
+        };
+      });
+      
       const productData = {
         ...formData,
         price: parseFloat(formData.price),
-        stock_batches: stockBatches,
+        stock_batches: formattedStockBatches,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -273,6 +295,7 @@ const AddProduct = () => {
             <StockBatchManager 
               batches={stockBatches}
               onChange={setStockBatches}
+              onEditStatusChange={setIsEditingBatch}
             />
           </div>
           
@@ -282,7 +305,7 @@ const AddProduct = () => {
               type="submit" 
               size="lg"
               className="gap-2 bg-organic-primary hover:bg-organic-dark"
-              disabled={isLoading}
+              disabled={isLoading || isEditingBatch}
             >
               <Save className="h-4 w-4" />
               {isLoading ? "Saving..." : "Save Product"}

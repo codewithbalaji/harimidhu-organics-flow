@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreHorizontal, FileText, Eye, TruckIcon } from "lucide-react";
+import { Plus, Search, MoreHorizontal, FileText, Eye, TruckIcon, PencilIcon } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Order } from "@/types";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,10 @@ const Orders = () => {
     navigate(`/orders/${orderId}`);
   };
 
+  const handleEditOrder = (orderId: string) => {
+    navigate(`/orders/edit/${orderId}`);
+  };
+
   const handleUpdateStatus = (orderId: string) => {
     navigate(`/orders/status/${orderId}`);
   };
@@ -137,6 +141,19 @@ const Orders = () => {
         toast.error('Failed to delete order');
       }
     }
+  };
+
+  // Format number to display with 2 decimal places
+  const formatNumber = (num: number) => {
+    return num.toFixed(2);
+  };
+
+  const hasCustomPricing = (order: Order) => {
+    return order.items.some(item => item.customPrice !== null && item.customPrice !== undefined);
+  };
+
+  const hasShippingCost = (order: Order) => {
+    return order.shippingCost !== undefined && order.shippingCost > 0;
   };
 
   if (isLoading) {
@@ -209,10 +226,26 @@ const Orders = () => {
                 <TableBody>
                   {filteredOrders.map((order) => (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell className="font-medium">
+                        {order.id}
+                        {hasCustomPricing(order) && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-sm">
+                            Custom
+                          </span>
+                        )}
+                        {hasShippingCost(order) && (
+                          <span className="ml-2 px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded-sm">
+                            + Shipping
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{order.customerName || "Customer"}</TableCell>
-                      <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>₹{order.total?.toFixed(2) || "0.00"}</TableCell>
+                      <TableCell>{new Date(order.createdAt).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit'
+                      })}</TableCell>
+                      <TableCell>₹{formatNumber(order.total)}</TableCell>
                       <TableCell>
                         <span className={cn(
                           "text-xs px-2 py-1 rounded-full capitalize",
@@ -239,6 +272,13 @@ const Orders = () => {
                             >
                               <Eye className="h-4 w-4" />
                               View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 cursor-pointer"
+                              onClick={() => handleEditOrder(order.id)}
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                              Edit Order
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="flex items-center gap-2 cursor-pointer"

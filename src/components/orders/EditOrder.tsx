@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,14 +23,18 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Save, Trash2, Search, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
-import { OrderItem, Customer, Product } from "@/types";
+import { OrderItem, Customer, Product, Order } from "@/types";
 import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
-import { getDocs, query, where, orderBy, addDoc, updateDoc, doc, getDoc } from "firebase/firestore";
+import { getDocs, query, where, orderBy, updateDoc, doc, getDoc } from "firebase/firestore";
+import { db } from "@/firebase";
 
-const AddOrder = () => {
+const EditOrder = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [orderId, setOrderId] = useState<string>("");
   const [customerId, setCustomerId] = useState("");
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [originalItems, setOriginalItems] = useState<OrderItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -41,11 +45,46 @@ const AddOrder = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editedPrice, setEditedPrice] = useState<number>(0);
+  const [status, setStatus] = useState<string>("pending");
   const [shippingCost, setShippingCost] = useState<number>(0);
   
   useEffect(() => {
-    fetchCustomersAndProducts();
-  }, []);
+    if (id) {
+      setOrderId(id);
+      Promise.all([
+        fetchOrderDetails(id),
+        fetchCustomersAndProducts()
+      ]);
+    } else {
+      toast.error("Order ID not found");
+      navigate("/orders");
+    }
+  }, [id]);
+
+  const fetchOrderDetails = async (orderId: string) => {
+    try {
+      setIsLoading(true);
+      const orderDoc = await getDoc(doc(ordersCollection, orderId));
+      
+      if (orderDoc.exists()) {
+        const data = orderDoc.data() as Order;
+        setCustomerId(data.customerId || "");
+        setItems(data.items);
+        setOriginalItems(data.items ? [...data.items] : []);
+        setStatus(data.status || "pending");
+        setShippingCost(data.shippingCost || 0);
+      } else {
+        toast.error("Order not found");
+        navigate("/orders");
+      }
+    } catch (error) {
+      console.error("Error fetching order details:", error);
+      toast.error("Failed to fetch order details");
+      navigate("/orders");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchCustomersAndProducts = async () => {
     try {
@@ -63,17 +102,14 @@ const AddOrder = () => {
       const productsData = productsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        stock: doc.data().stock_batches?.reduce((sum: number, batch: any) => sum + batch.quantity, 0) || 0
+        stock: doc.data().stock_batches?.reduce((sum: number, batch: { quantity: number }) => sum + batch.quantity, 0) || 0
       })) as Product[];
 
-      console.log('Fetched products:', productsData); // Debug log
       setCustomers(customersData);
       setProducts(productsData);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch customers and products");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -226,7 +262,7 @@ const AddOrder = () => {
       const customerDoc = await getDoc(doc(customersCollection, selectedCustomer.id));
       const customerData = customerDoc.data();
       
-      // Create order
+      // Create order update data
       const orderData = {
         customerId,
         customerName: selectedCustomer.name,
@@ -238,24 +274,127 @@ const AddOrder = () => {
         })),
         total: grandTotal,
         shippingCost,
-        status: "pending",
-        createdAt: new Date().toISOString(),
+        status,
         updatedAt: new Date().toISOString(),
         latitude: customerData?.latitude || 0,
         longitude: customerData?.longitude || 0
       };
 
-      const orderRef = await addDoc(ordersCollection, orderData);
+      // Update the order
+      await updateDoc(doc(ordersCollection, orderId), orderData);
 
-      // Update product stocks
-      const updatePromises = items.map(async (item) => {
+      // Update product stocks - handle the inventory changes based on what changed
+      const stockUpdatePromises = [];
+
+      // Track removed items (need to add back to stock)
+      const removedItems = originalItems.filter(
+        original => !items.some(current => current.productId === original.productId)
+      );
+
+      // Add back stock for removed items
+      for (const item of removedItems) {
         const product = products.find(p => p.id === item.productId);
-        if (!product) return;
+        if (!product) continue;
 
+        const updatedBatches = [...(product.stock_batches || [])];
+        
+        // Add quantity back to the first batch
+        if (updatedBatches.length > 0) {
+          updatedBatches[0].quantity += item.quantity;
+        } else {
+          // Create new batch if none exists
+          updatedBatches.push({
+            id: new Date().toISOString(),
+            quantity: item.quantity,
+            cost_price: product.price,
+            date_added: new Date().toISOString()
+          });
+        }
+
+        stockUpdatePromises.push(
+          updateDoc(doc(productsCollection, product.id), {
+            stock_batches: updatedBatches
+          })
+        );
+      }
+
+      // Handle quantity changes for existing items
+      for (const currentItem of items) {
+        const originalItem = originalItems.find(item => item.productId === currentItem.productId);
+        
+        // Skip if new item (will be handled separately)
+        if (!originalItem) continue;
+        
+        // If quantity changed, adjust stock accordingly
+        if (currentItem.quantity !== originalItem.quantity) {
+          const quantityDiff = originalItem.quantity - currentItem.quantity;
+          
+          // Skip if no change
+          if (quantityDiff === 0) continue;
+          
+          const product = products.find(p => p.id === currentItem.productId);
+          if (!product) continue;
+          
+          const updatedBatches = [...(product.stock_batches || [])];
+          
+          if (quantityDiff > 0) {
+            // Customer is ordering less now, add stock back
+            if (updatedBatches.length > 0) {
+              updatedBatches[0].quantity += quantityDiff;
+            } else {
+              updatedBatches.push({
+                id: new Date().toISOString(),
+                quantity: quantityDiff,
+                cost_price: product.price,
+                date_added: new Date().toISOString()
+              });
+            }
+          } else {
+            // Customer is ordering more, remove from stock using FIFO
+            let remainingToRemove = -quantityDiff;
+            
+            for (let i = 0; i < updatedBatches.length && remainingToRemove > 0; i++) {
+              const batch = updatedBatches[i];
+              if (batch.quantity > remainingToRemove) {
+                batch.quantity -= remainingToRemove;
+                remainingToRemove = 0;
+              } else {
+                remainingToRemove -= batch.quantity;
+                batch.quantity = 0;
+              }
+            }
+            
+            // Check if we had enough stock
+            if (remainingToRemove > 0) {
+              toast.error(`Not enough stock for ${product.name}`);
+              return;
+            }
+          }
+          
+          // Remove empty batches
+          const filteredBatches = updatedBatches.filter(batch => batch.quantity > 0);
+          
+          stockUpdatePromises.push(
+            updateDoc(doc(productsCollection, product.id), {
+              stock_batches: filteredBatches
+            })
+          );
+        }
+      }
+      
+      // Handle new items (need to remove from stock)
+      const newItems = items.filter(
+        current => !originalItems.some(original => original.productId === current.productId)
+      );
+      
+      for (const item of newItems) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) continue;
+        
         // Update stock_batches using FIFO
         const updatedBatches = [...(product.stock_batches || [])];
         let remainingQuantity = item.quantity;
-
+        
         for (let i = 0; i < updatedBatches.length && remainingQuantity > 0; i++) {
           const batch = updatedBatches[i];
           if (batch.quantity > remainingQuantity) {
@@ -266,22 +405,30 @@ const AddOrder = () => {
             batch.quantity = 0;
           }
         }
-
+        
+        // Check if we had enough stock
+        if (remainingQuantity > 0) {
+          toast.error(`Not enough stock for ${product.name}`);
+          return;
+        }
+        
         // Remove empty batches
         const filteredBatches = updatedBatches.filter(batch => batch.quantity > 0);
+        
+        stockUpdatePromises.push(
+          updateDoc(doc(productsCollection, product.id), {
+            stock_batches: filteredBatches
+          })
+        );
+      }
 
-        await updateDoc(doc(productsCollection, product.id), {
-          stock_batches: filteredBatches
-        });
-      });
+      await Promise.all(stockUpdatePromises);
 
-      await Promise.all(updatePromises);
-
-      toast.success("Order created successfully!");
+      toast.success("Order updated successfully!");
       navigate("/orders");
     } catch (error) {
-      console.error("Error creating order:", error);
-      toast.error("Failed to create order");
+      console.error("Error updating order:", error);
+      toast.error("Failed to update order");
     } finally {
       setIsSubmitting(false);
     }
@@ -289,7 +436,7 @@ const AddOrder = () => {
 
   if (isLoading) {
     return (
-      <DashboardLayout title="Create New Order">
+      <DashboardLayout title="Edit Order">
         <div className="flex justify-center items-center h-40">
           <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
         </div>
@@ -298,7 +445,7 @@ const AddOrder = () => {
   }
 
   return (
-    <DashboardLayout title="Create New Order">
+    <DashboardLayout title="Edit Order">
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <Link to="/orders">
@@ -364,6 +511,26 @@ const AddOrder = () => {
                       })()}
                     </div>
                   )}
+
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="status">
+                      Order Status <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value={status}
+                      onValueChange={setStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="out-for-delivery">Out for Delivery</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -566,7 +733,7 @@ const AddOrder = () => {
               disabled={!customerId || items.length === 0 || isSubmitting}
             >
               <Save className="h-4 w-4" />
-              {isSubmitting ? "Creating Order..." : "Create Order"}
+              {isSubmitting ? "Updating Order..." : "Update Order"}
             </Button>
           </div>
         </form>
@@ -575,4 +742,4 @@ const AddOrder = () => {
   );
 };
 
-export default AddOrder;
+export default EditOrder; 

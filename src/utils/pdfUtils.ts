@@ -399,9 +399,13 @@ export const generateInvoicePdf = async (
   // Section 3: Items Table with CGST and SGST
   const items = invoice.items.map((item, index) => {
     const itemAmount = (item.price || item.unitPrice || 0) * item.quantity;
+    
+    // Create description without custom price indicator
+    const description = item.name || item.productName || "";
+    
     return [
       (index + 1).toString(),
-      item.name || item.productName || "",
+      description,
       item.quantity.toString(),
       formatCurrency(item.price || item.unitPrice || 0),
       formatCurrency(itemAmount),
@@ -432,9 +436,10 @@ export const generateInvoicePdf = async (
     (sum, item) => sum + (item.price || item.unitPrice || 0) * item.quantity,
     0
   );
+  const shippingCost = invoice.shippingCost || 0;
   const cgstAmount = subtotal * cgstRate;
   const sgstAmount = subtotal * sgstRate;
-  const total = subtotal + cgstAmount + sgstAmount;
+  const total = subtotal + shippingCost + cgstAmount + sgstAmount;
   const totalRounded = Math.round(total);
 
   // Define the table
@@ -511,6 +516,13 @@ export const generateInvoicePdf = async (
   doc.text("Subtotal", totalsX, y);
   doc.text(formatCurrency(subtotal), totalsRightX, y, { align: "right" });
   y += 5;
+
+  // Shipping row if applicable
+  if (shippingCost > 0) {
+    doc.text("Shipping Cost", totalsX, y);
+    doc.text(formatCurrency(shippingCost), totalsRightX, y, { align: "right" });
+    y += 5;
+  }
 
   // CGST row
   doc.text("CGST", totalsX, y);

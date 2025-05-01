@@ -94,6 +94,7 @@ const InvoiceGenerator = () => {
         deliveryAddress: order.deliveryAddress,
         items: order.items,
         total: order.total,
+        shippingCost: order.shippingCost,
         paidStatus: paymentStatus,
         paymentMethod: paymentMethod || "",
         paymentDate: paymentStatus === 'paid' && paymentDate ? new Date(paymentDate).getTime() : null,
@@ -178,6 +179,11 @@ const InvoiceGenerator = () => {
 
   const formattedDate = new Date(order.createdAt).toLocaleDateString();
 
+  // Calculate subtotal from items, excluding shipping cost
+  const calculateSubtotal = () => {
+    return order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
   return (
     <DashboardLayout title="Generate Invoice">
       <div className="flex flex-col gap-6 max-w-3xl mx-auto">
@@ -236,7 +242,18 @@ const InvoiceGenerator = () => {
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              Quantity: {item.quantity} x ₹{item.price}
+                              Quantity: {item.quantity} x 
+                              {item.customPrice ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="line-through text-xs">₹{item.originalPrice?.toFixed(2)}</span>
+                                  <span className="text-organic-primary font-medium">₹{item.price.toFixed(2)}</span>
+                                  <span className="ml-1 text-xs px-1 py-0.25 bg-blue-100 text-blue-800 rounded-sm">
+                                    Custom
+                                  </span>
+                                </span>
+                              ) : (
+                                <span> ₹{item.price.toFixed(2)}</span>
+                              )}
                             </p>
                           </div>
                           <p className="font-medium">₹{(item.quantity * item.price).toFixed(2)}</p>
@@ -252,6 +269,16 @@ const InvoiceGenerator = () => {
 
                   <div className="pt-4 border-t">
                     <div className="flex justify-between font-medium">
+                      <span>Subtotal:</span>
+                      <span>₹{calculateSubtotal().toFixed(2)}</span>
+                    </div>
+                    {order.shippingCost > 0 && (
+                      <div className="flex justify-between mt-2">
+                        <span>Shipping Cost:</span>
+                        <span>₹{order.shippingCost.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium mt-2 pt-2 border-t">
                       <span>Total Amount:</span>
                       <span>₹{order.total?.toFixed(2) || "0.00"}</span>
                     </div>

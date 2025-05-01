@@ -15,6 +15,7 @@ import AddCustomer from "./components/customers/AddCustomer";
 import AddProduct from "./components/products/AddProduct";
 import EditProduct from "./components/products/EditProduct";
 import AddOrder from "./components/orders/AddOrder";
+import EditOrder from "./components/orders/EditOrder";
 import Invoices from "./pages/Invoices";
 import InvoiceGenerator from "./components/invoices/InvoiceGenerator";
 import ViewInvoice from "./components/invoices/ViewInvoice";
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/new" element={<AddOrder />} />
               <Route path="/orders/:id" element={<OrderDetails />} />
+              <Route path="/orders/edit/:id" element={<EditOrder />} />
               <Route path="/orders/status/:id" element={<UpdateOrderStatus />} />
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/invoices/generate/:orderId" element={<InvoiceGenerator />} />

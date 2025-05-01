@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Printer, FileText, TruckIcon } from "lucide-react";
+import { ArrowLeft, Printer, FileText, TruckIcon, PencilIcon } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,11 @@ const OrderDetails = () => {
 
   const formattedDate = new Date(order.createdAt).toLocaleDateString();
 
+  // Calculate subtotal from items, excluding shipping cost
+  const calculateSubtotal = () => {
+    return order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
   return (
     <DashboardLayout title="Order Details">
       <div className="flex flex-col gap-6">
@@ -151,6 +156,16 @@ const OrderDetails = () => {
                 <span className="text-muted-foreground">Customer</span>
                 <span>{order.customerName}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>₹{calculateSubtotal().toFixed(2)}</span>
+              </div>
+              {order.shippingCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Shipping Cost</span>
+                  <span>₹{order.shippingCost.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Amount</span>
                 <span className="font-medium">₹{order.total?.toFixed(2) || "0.00"}</span>
@@ -196,7 +211,18 @@ const OrderDetails = () => {
                       <div>
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Quantity: {item.quantity} x ₹{item.price}
+                          Quantity: {item.quantity} x 
+                          {item.customPrice ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="line-through text-xs">₹{item.originalPrice?.toFixed(2)}</span>
+                              <span className="text-organic-primary font-medium">₹{item.price.toFixed(2)}</span>
+                              <span className="ml-1 text-xs px-1 py-0.25 bg-blue-100 text-blue-800 rounded-sm">
+                                Custom
+                              </span>
+                            </span>
+                          ) : (
+                            <span> ₹{item.price.toFixed(2)}</span>
+                          )}
                         </p>
                       </div>
                       <p className="font-medium">₹{(item.quantity * item.price).toFixed(2)}</p>
@@ -214,6 +240,12 @@ const OrderDetails = () => {
         </Card>
 
         <div className="flex justify-end gap-4">
+          <Link to={`/orders/edit/${order.id}`}>
+            <Button className="gap-2 bg-amber-500 hover:bg-amber-600 text-white">
+              <PencilIcon className="h-4 w-4" />
+              Edit Order
+            </Button>
+          </Link>
           <Link to={`/orders/status/${order.id}`}>
             <Button className="gap-2">
               <TruckIcon className="h-4 w-4" />

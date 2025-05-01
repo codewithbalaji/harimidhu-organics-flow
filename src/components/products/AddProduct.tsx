@@ -30,6 +30,7 @@ const AddProduct = () => {
     price: "",
     category: "",
     image: "",
+    unit: "Kilogram", // Default unit
   });
   const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -198,6 +199,26 @@ const AddProduct = () => {
                             <SelectItem value="Provisions">Provisions</SelectItem>
                             <SelectItem value="Homemade Soaps">Homemade Soaps</SelectItem>
                             <SelectItem value="Chekku Raw Materials">Chekku Raw Materials</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="unit">
+                          Unit <span className="text-destructive">*</span>
+                        </Label>
+                        <Select 
+                          value={formData.unit}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Kilogram">Kilogram</SelectItem>
+                            <SelectItem value="Litre">Litre</SelectItem>
+                            <SelectItem value="Piece">Piece</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

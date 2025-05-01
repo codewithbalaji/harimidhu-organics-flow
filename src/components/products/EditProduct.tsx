@@ -21,20 +21,27 @@ import { productsCollection } from "@/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
+// Extended Product type with unit field
+interface ExtendedProduct extends Omit<Product, "id" | "createdAt"> {
+  unit: string;
+}
+
 const EditProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [formData, setFormData] = useState<Omit<Product, "id" | "createdAt" | "stock_batches">>({
+  const [formData, setFormData] = useState<Omit<ExtendedProduct, "stock_batches">>({
     name: "",
     description: "",
     price: 0,
     category: "",
     image: "",
+    unit: "Kilogram",
   });
   const [stockBatches, setStockBatches] = useState<StockBatch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [isEditingBatch, setIsEditingBatch] = useState(false);
   
   useEffect(() => {
     const fetchProduct = async () => {
@@ -50,17 +57,50 @@ const EditProduct = () => {
           return;
         }
 
-        const productData = productDoc.data() as Product;
+        const productData = productDoc.data() as ExtendedProduct;
         setFormData({
           name: productData.name,
           description: productData.description,
           price: productData.price,
           category: productData.category,
           image: productData.image,
+          unit: productData.unit || "Kilogram",
         });
         
         if (productData.stock_batches) {
-          setStockBatches(productData.stock_batches);
+          // Ensure we work with ISO date strings in the UI
+          const batchesWithISODates = productData.stock_batches.map(batch => {
+            // Check if date_added is already in ISO format
+            if (typeof batch.date_added === 'string' && 
+                batch.date_added.match(/^\d{4}-\d{2}-\d{2}T/)) {
+              return batch;
+            }
+            
+            // Convert date format (DD/MM/YY) back to ISO string
+            try {
+              const parts = batch.date_added.split('/');
+              if (parts.length === 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1; // Month is 0-based in JS Date
+                const year = 2000 + parseInt(parts[2]); // Assume 20xx for 2-digit years
+                const dateObj = new Date(year, month, day);
+                return {
+                  ...batch,
+                  date_added: dateObj.toISOString()
+                };
+              }
+            } catch (error) {
+              console.error("Error parsing date:", error);
+            }
+            
+            // Fallback to current date if parsing fails
+            return {
+              ...batch,
+              date_added: new Date().toISOString()
+            };
+          });
+          
+          setStockBatches(batchesWithISODates);
         }
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -125,6 +165,11 @@ const EditProduct = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isEditingBatch) {
+      toast.error("Please save or cancel your stock batch changes first");
+      return;
+    }
+    
     if (!formData.name || !formData.price || !formData.category) {
       toast.error("Please fill all required fields");
       return;
@@ -133,9 +178,25 @@ const EditProduct = () => {
     try {
       setIsSaving(true);
       
+      // Format dates in stock batches to DD/MM/YY format
+      const formattedStockBatches = stockBatches.map(batch => {
+        // Convert the ISO string date to a Date object
+        const dateObj = new Date(batch.date_added);
+        
+        // Format as DD/MM/YY
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const year = String(dateObj.getFullYear()).slice(-2);
+        
+        return {
+          ...batch,
+          date_added: `${day}/${month}/${year}`
+        };
+      });
+      
       const productData = {
         ...formData,
-        stock_batches: stockBatches,
+        stock_batches: formattedStockBatches,
         updatedAt: serverTimestamp()
       };
 
@@ -237,6 +298,26 @@ const EditProduct = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="unit">
+                    Unit <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={formData.unit}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Kilogram">Kilogram</SelectItem>
+                      <SelectItem value="Litre">Litre</SelectItem>
+                      <SelectItem value="Piece">Piece</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="image">
                     Image <span className="text-destructive">*</span>
                   </Label>
@@ -279,16 +360,26 @@ const EditProduct = () => {
           </Card>
 
           {/* Stock Batch Manager */}
-          <StockBatchManager 
-            batches={stockBatches}
-            onChange={setStockBatches}
-          />
+          <div className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Stock Batches</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StockBatchManager
+                  batches={stockBatches}
+                  onChange={setStockBatches}
+                  onEditStatusChange={setIsEditingBatch}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="flex justify-end">
             <Button 
               type="submit" 
               className="gap-2 bg-organic-primary hover:bg-organic-dark"
-              disabled={isSaving}
+              disabled={isSaving || isEditingBatch}
             >
               <Save className="h-4 w-4" />
               {isSaving ? "Saving..." : "Update Product"}

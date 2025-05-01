@@ -22,6 +22,7 @@ const AddCustomer = () => {
     latitude: null,
     longitude: null
   });
+  const [coordinates, setCoordinates] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (
@@ -34,11 +35,31 @@ const AddCustomer = () => {
     }));
   };
 
+  const handleCoordinatesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCoordinates(value);
+    
+    // Automatically extract latitude and longitude if in format "lat, long"
+    const parts = value.split(',').map(part => part.trim());
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setFormData(prev => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng
+        }));
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form
-    if (!formData.name || !formData.email || !formData.phone) {
+    // Validate form - only name and phone are required
+    if (!formData.name || !formData.phone) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -99,7 +120,7 @@ const AddCustomer = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="email">
-                    Email <span className="text-destructive">*</span>
+                    Email
                   </Label>
                   <Input
                     id="email"
@@ -108,7 +129,6 @@ const AddCustomer = () => {
                     placeholder="Enter email address"
                     value={formData.email}
                     onChange={handleChange}
-                    required
                   />
                 </div>
 
@@ -138,30 +158,20 @@ const AddCustomer = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude</Label>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="coordinates">Coordinates (Latitude, Longitude)</Label>
                   <Input
-                    id="latitude"
-                    name="latitude"
-                    type="number"
-                    step="any"
-                    placeholder="Enter latitude"
-                    value={formData.latitude}
-                    onChange={handleChange}
+                    id="coordinates"
+                    name="coordinates"
+                    placeholder="e.g. 13.11973153117644, 80.15038241763571"
+                    value={coordinates}
+                    onChange={handleCoordinatesChange}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    name="longitude"
-                    type="number"
-                    step="any"
-                    placeholder="Enter longitude"
-                    value={formData.longitude}
-                    onChange={handleChange}
-                  />
+                  {(formData.latitude || formData.longitude) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Current values: Latitude: {formData.latitude}, Longitude: {formData.longitude}
+                    </p>
+                  )}
                 </div>
               </div>
 

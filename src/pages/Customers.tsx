@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, SortAsc, SortDesc, Clock } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Customer } from "@/types";
 import { customersCollection } from "@/firebase";
@@ -25,12 +25,16 @@ import { getDocs, deleteDoc, doc, collection, query, orderBy } from "firebase/fi
 import { db } from "@/firebase";
 import { toast } from "sonner";
 
+// Filter types
+type SortOption = "a-z" | "z-a" | "recent" | "oldest";
+
 const Customers = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [sortOption, setSortOption] = useState<SortOption>("recent");
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -46,7 +50,7 @@ const Customers = () => {
         } as Customer));
         
         setCustomers(customersData);
-        setFilteredCustomers(customersData);
+        applyFilters(customersData, searchQuery, sortOption);
       } catch (error) {
         console.error("Error fetching customers:", error);
         toast.error("Failed to load customers");
@@ -58,29 +62,57 @@ const Customers = () => {
     fetchCustomers();
   }, []);
 
+  // Apply both search and sort filters
+  const applyFilters = (data: Customer[], search: string, sort: SortOption) => {
+    let filtered = [...data];
+    
+    // Apply search filter
+    if (search.trim() !== "") {
+      filtered = filtered.filter(
+        customer =>
+          customer.name.toLowerCase().includes(search.toLowerCase()) ||
+          (customer.email && customer.email.toLowerCase().includes(search.toLowerCase())) ||
+          customer.phone.includes(search)
+      );
+    }
+    
+    // Apply sort filter
+    switch (sort) {
+      case "a-z":
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "z-a":
+        filtered.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "recent":
+        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case "oldest":
+        filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        break;
+    }
+    
+    setFilteredCustomers(filtered);
+  };
+
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
-    
-    if (query.trim() === "") {
-      setFilteredCustomers(customers);
-    } else {
-      const filtered = customers.filter(
-        customer =>
-          customer.name.toLowerCase().includes(query) ||
-          customer.email.toLowerCase().includes(query) ||
-          customer.phone.includes(query)
-      );
-      setFilteredCustomers(filtered);
-    }
+    applyFilters(customers, query, sortOption);
+  };
+
+  const handleSortChange = (option: SortOption) => {
+    setSortOption(option);
+    applyFilters(customers, searchQuery, option);
   };
 
   const handleDeleteCustomer = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this customer?")) {
       try {
         await deleteDoc(doc(db, "customers", id));
-        setCustomers(prevCustomers => prevCustomers.filter(customer => customer.id !== id));
-        setFilteredCustomers(prevFiltered => prevFiltered.filter(customer => customer.id !== id));
+        const updatedCustomers = customers.filter(customer => customer.id !== id);
+        setCustomers(updatedCustomers);
+        applyFilters(updatedCustomers, searchQuery, sortOption);
         toast.success("Customer deleted successfully");
       } catch (error) {
         console.error("Error deleting customer:", error);
@@ -97,19 +129,63 @@ const Customers = () => {
     navigate(`/customers/edit/${id}`);
   };
 
+  // Format date to DD/MM/YY
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
   return (
     <DashboardLayout title="Customers">
       <div className="flex flex-col gap-6">
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search customers..."
-              className="pl-9 w-full sm:w-80"
-              value={searchQuery}
-              onChange={handleSearch}
-            />
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search customers..."
+                className="pl-9 w-full sm:w-80"
+                value={searchQuery}
+                onChange={handleSearch}
+              />
+            </div>
+            
+            {/* Sort options */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  {sortOption === "a-z" && <SortAsc className="mr-2 h-4 w-4" />}
+                  {sortOption === "z-a" && <SortDesc className="mr-2 h-4 w-4" />}
+                  {(sortOption === "recent" || sortOption === "oldest") && <Clock className="mr-2 h-4 w-4" />}
+                  {sortOption === "a-z" && "Name (A-Z)"}
+                  {sortOption === "z-a" && "Name (Z-A)"}
+                  {sortOption === "recent" && "Most Recent"}
+                  {sortOption === "oldest" && "Oldest First"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleSortChange("a-z")}>
+                  <SortAsc className="mr-2 h-4 w-4" />
+                  Name (A-Z)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSortChange("z-a")}>
+                  <SortDesc className="mr-2 h-4 w-4" />
+                  Name (Z-A)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSortChange("recent")}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Most Recent
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSortChange("oldest")}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Oldest First
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           <Link to="/customers/new">
@@ -146,13 +222,13 @@ const Customers = () => {
                   {filteredCustomers.map((customer) => (
                     <TableRow key={customer.id}>
                       <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell>{customer.email}</TableCell>
+                      <TableCell>{customer.email || "-"}</TableCell>
                       <TableCell>{customer.phone}</TableCell>
                       <TableCell className="max-w-[150px] truncate" title={customer.address}>
-                        {customer.address}
+                        {customer.address || "-"}
                       </TableCell>
                       <TableCell>
-                        {new Date(customer.createdAt).toLocaleDateString()}
+                        {formatDate(customer.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

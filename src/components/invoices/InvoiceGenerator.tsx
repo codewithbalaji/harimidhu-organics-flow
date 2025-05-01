@@ -16,14 +16,21 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Save, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Order, Invoice } from "@/types";
-import { ordersCollection, invoicesCollection } from "@/firebase";
+import { Invoice as IndexInvoice } from "@/types/index";
+import { ordersCollection, invoicesCollection, db } from "@/firebase";
 import { doc, getDoc, addDoc } from "firebase/firestore";
 import { generateInvoicePdf } from "@/utils/pdfUtils";
+
+// Extended Order type to include properties needed for Invoice
+interface ExtendedOrder extends Order {
+  customerPhone?: string;
+  deliveryAddress?: string;
+}
 
 const InvoiceGenerator = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<ExtendedOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("unpaid");
@@ -59,9 +66,17 @@ const InvoiceGenerator = () => {
         const data = orderDoc.data();
         setOrder({
           id: orderDoc.id,
-          ...data,
-          createdAt: data.createdAt || Date.now()
-        } as Order);
+          customerId: data.customerId,
+          customerName: data.customerName,
+          items: data.items,
+          total: data.total,
+          status: data.status,
+          createdAt: data.createdAt || Date.now(),
+          // Add optional properties that may be in data
+          customerPhone: data.customerPhone || "",
+          deliveryAddress: data.deliveryAddress || "",
+          shippingCost: data.shippingCost
+        } as ExtendedOrder);
       } else {
         toast.error("Order not found");
         navigate("/orders");
@@ -90,8 +105,8 @@ const InvoiceGenerator = () => {
       const invoiceData = {
         orderId: order.id,
         customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        deliveryAddress: order.deliveryAddress,
+        customerPhone: order.customerPhone || "",
+        deliveryAddress: order.deliveryAddress || "",
         items: order.items,
         total: order.total,
         shippingCost: order.shippingCost,
@@ -126,24 +141,58 @@ const InvoiceGenerator = () => {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!invoice) return;
     
     try {
       // Get company info from localStorage or use defaults
-      const savedInfo = localStorage.getItem('companyInfo');
-      const companyInfo = savedInfo ? JSON.parse(savedInfo) : {};
+      let companyInfo = {};
+      
+      // Try to get company info from Firebase
+      try {
+        const docRef = doc(db, 'companySettings', 'default');
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          companyInfo = docSnap.data();
+        } else {
+          // Fall back to localStorage
+          const savedInfo = localStorage.getItem('companyInfo');
+          if (savedInfo) {
+            companyInfo = JSON.parse(savedInfo);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching company info:', error);
+        // Fall back to localStorage
+        const savedInfo = localStorage.getItem('companyInfo');
+        if (savedInfo) {
+          companyInfo = JSON.parse(savedInfo);
+        }
+      }
       
       // Ensure the custom notes from the invoice are used
       if (invoice.notes) {
-        companyInfo.notes = invoice.notes;
+        companyInfo = {
+          ...companyInfo,
+          notes: invoice.notes
+        };
       }
       
+      // Format the invoice to match the expected type
+      const formattedInvoice: IndexInvoice = {
+        ...invoice,
+        customerPhone: invoice.customerPhone || "",
+        deliveryAddress: invoice.deliveryAddress || "",
+        paymentDate: invoice.paymentDate || undefined,
+        updatedAt: undefined
+      };
+      
       // Generate PDF
-      const doc = generateInvoicePdf(invoice, companyInfo);
+      const pdfDoc = await generateInvoicePdf(formattedInvoice, companyInfo);
       
       // Save the PDF
-      doc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`);
+      pdfDoc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`);
       toast.success('Invoice downloaded successfully!');
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -181,7 +230,7 @@ const InvoiceGenerator = () => {
 
   // Calculate subtotal from items, excluding shipping cost
   const calculateSubtotal = () => {
-    return order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return order.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
   };
 
   return (
@@ -246,17 +295,17 @@ const InvoiceGenerator = () => {
                               {item.customPrice ? (
                                 <span className="inline-flex items-center gap-1">
                                   <span className="line-through text-xs">₹{item.originalPrice?.toFixed(2)}</span>
-                                  <span className="text-organic-primary font-medium">₹{item.price.toFixed(2)}</span>
+                                  <span className="text-organic-primary font-medium">₹{item.price?.toFixed(2)}</span>
                                   <span className="ml-1 text-xs px-1 py-0.25 bg-blue-100 text-blue-800 rounded-sm">
                                     Custom
                                   </span>
                                 </span>
                               ) : (
-                                <span> ₹{item.price.toFixed(2)}</span>
+                                <span> ₹{item.price?.toFixed(2)}</span>
                               )}
                             </p>
                           </div>
-                          <p className="font-medium">₹{(item.quantity * item.price).toFixed(2)}</p>
+                          <p className="font-medium">₹{((item.price || 0) * item.quantity).toFixed(2)}</p>
                         </div>
                         {index < order.items.length - 1 && <Separator className="my-4" />}
                       </div>
@@ -272,7 +321,7 @@ const InvoiceGenerator = () => {
                       <span>Subtotal:</span>
                       <span>₹{calculateSubtotal().toFixed(2)}</span>
                     </div>
-                    {order.shippingCost > 0 && (
+                    {order.shippingCost && order.shippingCost > 0 && (
                       <div className="flex justify-between mt-2">
                         <span>Shipping Cost:</span>
                         <span>₹{order.shippingCost.toFixed(2)}</span>

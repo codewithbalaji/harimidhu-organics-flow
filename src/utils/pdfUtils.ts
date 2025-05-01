@@ -32,6 +32,7 @@ interface CompanyInfo {
   name: string;
   owner?: string;
   logo?: string;
+  qrImg?: string;
   address: string;
   city: string;
   country: string;
@@ -341,6 +342,18 @@ export const generateInvoicePdf = async (
   doc.setFont("helvetica", "bold");
   doc.text("TAX INVOICE", 195, y + 15, { align: "right" });
 
+  // Add QR code if available
+  if (info.qrImg) {
+    try {
+      const qrSuccess = await addImageToDoc(doc, info.qrImg, 150, y + 20, 50, 50);
+      if (!qrSuccess) {
+        console.error("Failed to add QR code image");
+      }
+    } catch (error) {
+      console.error("Error adding QR code:", error);
+    }
+  }
+
   y += 60; // Increase space after header to account for repositioned elements
 
   // Section 2: Invoice Info and Bill/Ship To
@@ -393,10 +406,8 @@ export const generateInvoicePdf = async (
 
   // Calculate tax rates
   const taxRate = parseFloat(info.taxRate || "0") / 100;
-  const cgstRate = taxRate / 2;
-  const sgstRate = taxRate / 2;
-
-  // Section 3: Items Table with CGST and SGST
+  
+  // Section 3: Items Table without tax columns
   const items = invoice.items.map((item, index) => {
     const itemAmount = (item.price || item.unitPrice || 0) * item.quantity;
     
@@ -409,10 +420,6 @@ export const generateInvoicePdf = async (
       item.quantity.toString(),
       formatCurrency(item.price || item.unitPrice || 0),
       formatCurrency(itemAmount),
-      (cgstRate * 100).toFixed(1),
-      formatCurrency(itemAmount * cgstRate),
-      (sgstRate * 100).toFixed(1),
-      formatCurrency(itemAmount * sgstRate),
     ];
   });
 
@@ -424,10 +431,6 @@ export const generateInvoicePdf = async (
       "",
       "",
       "",
-      (cgstRate * 100).toFixed(1),
-      "0.00",
-      (sgstRate * 100).toFixed(1),
-      "0.00",
     ]);
   }
 
@@ -437,9 +440,7 @@ export const generateInvoicePdf = async (
     0
   );
   const shippingCost = invoice.shippingCost || 0;
-  const cgstAmount = subtotal * cgstRate;
-  const sgstAmount = subtotal * sgstRate;
-  const total = subtotal + shippingCost + cgstAmount + sgstAmount;
+  const total = subtotal + shippingCost;
   const totalRounded = Math.round(total);
 
   // Define the table
@@ -447,15 +448,12 @@ export const generateInvoicePdf = async (
     startY: y,
     head: [
       [
-        { content: "S.No", rowSpan: 2 },
-        { content: "Description", rowSpan: 2 },
-        { content: "Qty", rowSpan: 2 },
-        { content: "Unit Price", rowSpan: 2 },
-        { content: "Net Price", rowSpan: 2 },
-        { content: "CGST", colSpan: 2 },
-        { content: "SGST", colSpan: 2 },
-      ],
-      ["Rate %","Amount", "Rate %", "Amount"],
+        { content: "S.No" },
+        { content: "Description" },
+        { content: "Qty" },
+        { content: "Unit Price" },
+        { content: "Net Price" },
+      ]
     ],
     body: items,
     headStyles: {
@@ -474,13 +472,9 @@ export const generateInvoicePdf = async (
     columnStyles: {
       0: { cellWidth: 10, halign: "center" },
       1: { cellWidth: "auto", halign: "left" },
-      2: { cellWidth: 15, halign: "center" },
-      3: { cellWidth: 25, halign: "right" },
-      4: { cellWidth: 25, halign: "right" },
-      5: { cellWidth: 15, halign: "center" },
-      6: { cellWidth: 25, halign: "right" },
-      7: { cellWidth: 15, halign: "center" },
-      8: { cellWidth: 25, halign: "right" },
+      2: { cellWidth: 20, halign: "center" },
+      3: { cellWidth: 30, halign: "right" },
+      4: { cellWidth: 35, halign: "right" },
     },
     styles: {
       cellPadding: 3,
@@ -505,50 +499,64 @@ export const generateInvoicePdf = async (
   const amountWords = toWords(totalRounded);
   doc.text(amountWords, 15, y + 6);
 
-  // Totals
-  const totalsX = 130;
+  // Totals and GST sections side by side
+  const totalsX = 120;
   const totalsRightX = 195;
 
+  // Calculate GST values - backwards from total price (which already includes GST)
+  const gstRate = parseFloat(info.taxRate || "5") / 100;
+  const taxableAmount = subtotal / (1 + gstRate); // Remove GST from the subtotal to get taxable amount
+  const totalGST = subtotal - taxableAmount; // Total GST amount
+  const cgstAmount = totalGST / 2;
+  const sgstAmount = totalGST / 2;
+
+  // GST Summary Table - placed on the right side
+  y += 5; // Small space before calculations start
+
+  // Totals
   doc.line(totalsX, y - 5, totalsRightX, y - 5);
 
-  // Subtotal row
+  // Subtotal row (excluding GST)
   doc.setFontSize(9);
-  doc.text("Subtotal", totalsX, y);
+  doc.text("Subtotal (excl. GST)", totalsX, y);
+  doc.text(formatCurrency(taxableAmount), totalsRightX, y, { align: "right" });
+  y += 5;
+
+  // GST breakdown
+  doc.text(`CGST @ ${(gstRate * 50).toFixed(1)}%`, totalsX, y);
+  doc.text(formatCurrency(cgstAmount), totalsRightX, y, { align: "right" });
+  y += 5;
+
+  doc.text(`SGST @ ${(gstRate * 50).toFixed(1)}%`, totalsX, y);
+  doc.text(formatCurrency(sgstAmount), totalsRightX, y, { align: "right" });
+  y += 5;
+
+  // Subtotal with GST
+  doc.text("Subtotal (incl. GST)", totalsX, y);
   doc.text(formatCurrency(subtotal), totalsRightX, y, { align: "right" });
   y += 5;
 
   // Shipping row if applicable
-  if (shippingCost > 0) {
+  if (invoice.shippingCost && invoice.shippingCost > 0) {
     doc.text("Shipping Cost", totalsX, y);
     doc.text(formatCurrency(shippingCost), totalsRightX, y, { align: "right" });
     y += 5;
   }
 
-  // CGST row
-  doc.text("CGST", totalsX, y);
-  doc.text(formatCurrency(cgstAmount), totalsRightX, y, { align: "right" });
-  y += 5;
-
-  // SGST row
-  doc.text("SGST", totalsX, y);
-  doc.text(formatCurrency(sgstAmount), totalsRightX, y, { align: "right" });
-  y += 5;
-
   // Total row
+  doc.setFont("helvetica", "bold");
   doc.text("Total", totalsX, y);
   doc.text(formatCurrency(total), totalsRightX, y, { align: "right" });
   y += 5;
 
   // Grand Total (rounded) with proper rupee symbol
-  doc.setFont("helvetica", "bold");
   doc.text("Grand Total (Rounded off)", totalsX, y);
-
-  // Use "Rs." instead of the unicode rupee symbol which has display issues
-  doc.setFont("helvetica", "bold");
   doc.text(`Rs. ${totalRounded}`, totalsRightX, y, { align: "right" });
+  y += 5;
 
-  y += 20; // Space before final sections
-
+  // Remove the compact GST Summary Table section
+  y += 10; // Space between totals and the next section
+  
   // Section 5: Notes and Signature
 
   // Invoice Notes

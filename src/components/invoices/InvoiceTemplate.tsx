@@ -17,6 +17,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
     name: 'Harimidhu Organic',
     owner: 'Karthick G',
     logo: '',
+    qrImg: 'https://res.cloudinary.com/dyj3rywju/image/upload/v1746099387/harimidhu_qr_zinysn.jpg',
     address: 'No.71, comet street, VGN Windsor park,',
     city: 'Phase 4, Avadi, Chennai, Tamil Nadu 600077',
     country: 'India',
@@ -234,6 +235,18 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
           </div>
           <div className="text-right">
             <h1 className="text-2xl font-bold text-gray-800">TAX INVOICE</h1>
+            {companyInfo.qrImg && (
+              <div className="mt-2 flex justify-end">
+                <img 
+                  src={companyInfo.qrImg} 
+                  alt="Payment QR Code" 
+                  className="w-24 h-24 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -14,6 +14,7 @@ const CompanySettings = () => {
     name: '',
     owner: '',
     logo: '',
+    qrImg: '',
     address: '',
     city: '',
     country: 'India',
@@ -44,6 +45,7 @@ const CompanySettings = () => {
           name: data.name || '',
           owner: data.owner || '',
           logo: data.logo || '',
+          qrImg: data.qrImg || '',
           address: data.address || '',
           city: data.city || '',
           country: data.country || 'India',
@@ -68,6 +70,7 @@ const CompanySettings = () => {
               name: parsedInfo.name || '',
               owner: parsedInfo.owner || '',
               logo: parsedInfo.logo || '',
+              qrImg: parsedInfo.qrImg || '',
               address: parsedInfo.address || '',
               city: parsedInfo.city || '',
               country: parsedInfo.country || 'India',
@@ -86,6 +89,7 @@ const CompanySettings = () => {
               name: parsedInfo.name || '',
               owner: parsedInfo.owner || '',
               logo: parsedInfo.logo || '',
+              qrImg: parsedInfo.qrImg || '',
               address: parsedInfo.address || '',
               city: parsedInfo.city || '',
               country: parsedInfo.country || 'India',
@@ -229,6 +233,18 @@ const CompanySettings = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="qrImg">Payment QR Code URL</Label>
+                  <Input
+                    id="qrImg"
+                    name="qrImg"
+                    placeholder="https://example.com/qr-code.png"
+                    value={companyInfo.qrImg}
+                    onChange={handleChange}
+                  />
+                  <p className="text-xs text-muted-foreground">QR code for UPI, bank transfer, etc.</p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="signature">Signature Image URL</Label>
                   <Input
                     id="signature"
@@ -363,6 +379,18 @@ const CompanySettings = () => {
                 </div>
                 <div className="text-right">
                   <h1 className="text-3xl font-bold text-gray-700">TAX INVOICE</h1>
+                  {companyInfo.qrImg && (
+                    <div className="mt-2 flex justify-end">
+                      <img 
+                        src={companyInfo.qrImg} 
+                        alt="Payment QR Code" 
+                        className="w-24 h-24 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                   <div className="mt-4">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
                       <div className="text-gray-600 text-right">Invoice #:</div>

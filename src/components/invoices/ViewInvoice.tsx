@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { invoicesCollection } from '@/firebase'
 import { Invoice } from '@/types'
+import { Invoice as IndexInvoice } from '@/types/index'
 import { toast } from 'sonner'
 import InvoiceTemplate from './InvoiceTemplate'
 
@@ -13,6 +14,7 @@ const ViewInvoice = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [formattedInvoice, setFormattedInvoice] = useState<IndexInvoice | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -24,6 +26,19 @@ const ViewInvoice = () => {
       navigate('/invoices')
     }
   }, [id])
+
+  useEffect(() => {
+    if (invoice) {
+      // Adapt the invoice to match the expected type in InvoiceTemplate
+      setFormattedInvoice({
+        ...invoice,
+        customerPhone: invoice.customerPhone || "",
+        deliveryAddress: invoice.deliveryAddress || "",
+        paymentDate: invoice.paymentDate || undefined,
+        updatedAt: undefined
+      } as IndexInvoice)
+    }
+  }, [invoice])
 
   const fetchInvoiceDetails = async () => {
     if (!id) return
@@ -61,7 +76,7 @@ const ViewInvoice = () => {
     )
   }
 
-  if (!invoice) {
+  if (!invoice || !formattedInvoice) {
     return (
       <DashboardLayout title="Invoice Details">
         <div className="text-center py-10">
@@ -89,7 +104,7 @@ const ViewInvoice = () => {
           </Link>
         </div>
 
-        <InvoiceTemplate invoice={invoice} />
+        <InvoiceTemplate invoice={formattedInvoice} />
       </div>
     </DashboardLayout>
   )

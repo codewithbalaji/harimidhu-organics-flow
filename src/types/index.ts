@@ -68,6 +68,7 @@ export interface Invoice {
   notes?: string;
   createdAt: number;
   updatedAt?: number;
+  shippingCost?: number;
 }
 
 export interface DashboardStats {

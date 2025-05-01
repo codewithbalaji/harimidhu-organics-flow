@@ -87,6 +87,11 @@ const AddOrder = () => {
   // Calculate total
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+  // Format number to display with 2 decimal places
+  const formatNumber = (num: number) => {
+    return num.toFixed(2);
+  };
+
   const handleAddItem = () => {
     if (!selectedProduct || quantity <= 0) {
       toast.error("Please select a product and valid quantity");
@@ -98,7 +103,7 @@ const AddOrder = () => {
 
     const availableStock = product.stock || 0;
     if (availableStock < quantity) {
-      toast.error(`Only ${availableStock} items available in stock`);
+      toast.error(`Only ${formatNumber(availableStock)} items available in stock`);
       return;
     }
 
@@ -108,7 +113,7 @@ const AddOrder = () => {
     if (existingItem) {
       const newQuantity = existingItem.quantity + quantity;
       if (availableStock < newQuantity) {
-        toast.error(`Only ${availableStock} items available in stock`);
+        toast.error(`Only ${formatNumber(availableStock)} items available in stock`);
         return;
       }
       
@@ -142,6 +147,11 @@ const AddOrder = () => {
 
   const handleRemoveItem = (productId: string) => {
     setItems(items.filter(item => item.productId !== productId));
+  };
+
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setQuantity(isNaN(value) ? 1 : value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -338,7 +348,7 @@ const AddOrder = () => {
                         <SelectContent>
                           {filteredProducts.map(product => (
                             <SelectItem key={product.id} value={product.id}>
-                              {product.name} - ₹{product.price} (Stock: {product.stock || 0})
+                              {product.name} - ₹{product.price} (Stock: {formatNumber(product.stock || 0)})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -348,9 +358,10 @@ const AddOrder = () => {
                     <div className="w-full sm:w-24">
                       <Input
                         type="number"
-                        min="1"
+                        min="0.01"
+                        step="0.01"
                         value={quantity}
-                        onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                        onChange={handleQuantityChange}
                         placeholder="Qty"
                       />
                     </div>
@@ -381,9 +392,9 @@ const AddOrder = () => {
                         {items.map((item) => (
                           <TableRow key={item.productId}>
                             <TableCell>{item.name}</TableCell>
-                            <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right font-medium">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">₹{formatNumber(item.price)}</TableCell>
+                            <TableCell className="text-right">{formatNumber(item.quantity)}</TableCell>
+                            <TableCell className="text-right font-medium">₹{formatNumber(item.price * item.quantity)}</TableCell>
                             <TableCell>
                               <Button
                                 type="button"
@@ -409,7 +420,7 @@ const AddOrder = () => {
                     <div className="flex flex-col gap-2 items-end pt-4 border-t">
                       <div className="text-lg font-semibold flex justify-between w-full max-w-xs">
                         <span>Total:</span>
-                        <span>₹{total.toFixed(2)}</span>
+                        <span>₹{formatNumber(total)}</span>
                       </div>
                     </div>
                   )}

@@ -582,8 +582,8 @@ export const generateInvoicePdf = async (
         info.signature,
         150,
         y - 15,
-        40,
-        20
+        60,
+        30
       );
     } catch (error) {
       console.error("Failed to add signature:", error);

@@ -189,6 +189,17 @@ const InvoiceDetails = () => {
           </Alert>
         )}
 
+        {invoice.customerGstin && (
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+            <FileText className="h-4 w-4 text-blue-500" />
+            <AlertDescription>
+              <span className="font-medium">
+                Customer GSTIN: {invoice.customerGstin}
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {invoice.paidStatus === "partially_paid" && invoice.amountPaid && (
           <Alert className="bg-blue-50 border-blue-200 text-blue-800">
             <Banknote className="h-4 w-4 text-blue-500" />

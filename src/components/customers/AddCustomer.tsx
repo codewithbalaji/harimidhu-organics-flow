@@ -20,7 +20,8 @@ const AddCustomer = () => {
     phone: "",
     address: "",
     latitude: null,
-    longitude: null
+    longitude: null,
+    gstin: ""
   });
   const [coordinates, setCoordinates] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -128,6 +129,19 @@ const AddCustomer = () => {
                     type="email"
                     placeholder="Enter email address"
                     value={formData.email}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gstin">
+                    GSTIN
+                  </Label>
+                  <Input
+                    id="gstin"
+                    name="gstin"
+                    placeholder="Enter GSTIN (optional)"
+                    value={formData.gstin}
                     onChange={handleChange}
                   />
                 </div>

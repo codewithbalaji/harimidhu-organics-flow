@@ -8,6 +8,7 @@ import { doc, getDoc } from "firebase/firestore";
 interface ExtendedInvoice extends Invoice {
   outstandingAmount?: number;
   outstandingNote?: string;
+  customerGstin?: string;
 }
 
 declare module "jspdf" {
@@ -397,7 +398,7 @@ export const generateInvoicePdf = async (
   doc.text("Bill To", 15, y + 30);
 
   doc.setFont("helvetica", "normal");
-  doc.text("Non GST Customer", 15, y + 36);
+  doc.text(invoice.customerGstin ? `GSTIN: ${invoice.customerGstin}` : "Non GST Customer", 15, y + 36);
   doc.text(invoice.customerName, 15, y + 42);
 
   // Handle multi-line addresses
@@ -412,7 +413,7 @@ export const generateInvoicePdf = async (
   doc.text("Ship To", 120, y + 30);
 
   doc.setFont("helvetica", "normal");
-  doc.text("Non GST Customer", 120, y + 36);
+  doc.text(invoice.customerGstin ? `GSTIN: ${invoice.customerGstin}` : "Non GST Customer", 120, y + 36);
   doc.text(invoice.customerName, 120, y + 42);
 
   // Use same address for ship to

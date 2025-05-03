@@ -143,6 +143,12 @@ const CustomerDetails = () => {
                   <p className="text-sm text-muted-foreground">Phone</p>
                   <p>{customer.phone}</p>
                 </div>
+                {customer.gstin && (
+                <div>
+                  <p className="text-sm text-muted-foreground">GSTIN</p>
+                  <p>{customer.gstin}</p>
+                </div>
+                )}
               </div>
               <div className="space-y-2">
                 <div>

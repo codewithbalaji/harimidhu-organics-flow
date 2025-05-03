@@ -241,13 +241,17 @@ const AddOrder = () => {
         })),
         total: grandTotal,
         shippingCost,
-        outstandingAmount: outstandingAmount > 0 ? outstandingAmount : undefined,
-        outstandingNote: outstandingAmount > 0 ? outstandingNote : undefined,
+        // Only include outstanding amount if it's greater than 0
+        ...(outstandingAmount > 0 ? { 
+          outstandingAmount, 
+          outstandingNote: outstandingNote || "Previous outstanding balance"
+        } : {}),
         status: "pending",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         latitude: customerData?.latitude || 0,
-        longitude: customerData?.longitude || 0
+        longitude: customerData?.longitude || 0,
+        customerGstin: customerData?.gstin || ""
       };
 
       const orderRef = await addDoc(ordersCollection, orderData);

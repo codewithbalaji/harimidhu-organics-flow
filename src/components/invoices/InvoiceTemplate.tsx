@@ -290,6 +290,9 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
           <div className="border rounded p-3">
             <h3 className="font-medium text-gray-700 mb-1">Bill To</h3>
             <p className="text-sm text-gray-600">{invoice.customerName}</p>
+            <p className="text-sm text-gray-600">
+              {invoice.customerGstin ? `GSTIN: ${invoice.customerGstin}` : "Non GST Customer"}
+            </p>
             {addressLines.map((line, index) => (
               <p key={index} className="text-sm text-gray-600">{line}</p>
             ))}
@@ -301,6 +304,9 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
           <div className="mt-20 border rounded p-3">
             <h3 className="font-medium text-gray-700 mb-1">Ship To</h3>
             <p className="text-sm text-gray-600">{invoice.customerName}</p>
+            <p className="text-sm text-gray-600">
+              {invoice.customerGstin ? `GSTIN: ${invoice.customerGstin}` : "Non GST Customer"}
+            </p>
             {addressLines.map((line, index) => (
               <p key={index} className="text-sm text-gray-600">{line}</p>
             ))}

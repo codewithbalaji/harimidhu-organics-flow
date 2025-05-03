@@ -21,7 +21,8 @@ const EditCustomer = () => {
     phone: "",
     address: "",
     latitude: 0,
-    longitude: 0
+    longitude: 0,
+    gstin: ""
   });
   const [coordinates, setCoordinates] = useState("");
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,8 @@ const EditCustomer = () => {
             phone: data.phone || "",
             address: data.address || "",
             latitude: data.latitude || 0,
-            longitude: data.longitude || 0
+            longitude: data.longitude || 0,
+            gstin: data.gstin || ""
           });
           setCoordinates(`${data.latitude || ''}, ${data.longitude || ''}`);
         } else {
@@ -191,6 +193,19 @@ const EditCustomer = () => {
                     value={formData.phone}
                     onChange={handleChange}
                     required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gstin">
+                    GSTIN
+                  </Label>
+                  <Input
+                    id="gstin"
+                    name="gstin"
+                    placeholder="Enter GSTIN (optional)"
+                    value={formData.gstin}
+                    onChange={handleChange}
                   />
                 </div>
 

@@ -8,6 +8,7 @@ export interface Customer {
   latitude: number;
   longitude: number;
   createdAt: string;
+  gstin?: string;
 }
 
 // Product types
@@ -49,22 +50,38 @@ export interface Order {
   shippingCost?: number;
   status: "pending" | "processing" | "out-for-delivery" | "delivered";
   createdAt: string;
+  customerGstin?: string;
 }
 
 export interface Invoice {
   id: string;
   orderId: string;
   customerName: string;
-  customerPhone?: string;
-  deliveryAddress?: string;
+  customerPhone: string;
+  deliveryAddress: string;
   items: OrderItem[];
   total: number;
   shippingCost?: number;
-  paidStatus: "paid" | "unpaid";
+  paidStatus: "paid" | "unpaid" | "partially_paid";
   paymentMethod?: string;
-  paymentDate?: number | null;
+  paymentDate?: number;
   paymentReference?: string;
   dueDate: number;
   notes?: string;
   createdAt: number;
+  updatedAt?: number;
+  amountPaid?: number;
+  paymentHistory?: PaymentRecord[];
+  outstandingAmount?: number;
+  includeOutstanding?: boolean;
+  outstandingNote?: string;
+  customerGstin?: string;
+}
+
+export interface PaymentRecord {
+  amount: number;
+  date: string;
+  note: string;
+  previousStatus: string;
+  newStatus: string;
 } 

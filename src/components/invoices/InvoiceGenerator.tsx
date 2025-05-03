@@ -44,6 +44,7 @@ interface ExtendedOrder extends Order {
   deliveryAddress?: string;
   outstandingAmount?: number;
   outstandingNote?: string;
+  customerGstin?: string;
 }
 
 const InvoiceGenerator = () => {
@@ -98,7 +99,8 @@ const InvoiceGenerator = () => {
           deliveryAddress: data.deliveryAddress || "",
           shippingCost: data.shippingCost,
           outstandingAmount: data.outstandingAmount,
-          outstandingNote: data.outstandingNote
+          outstandingNote: data.outstandingNote,
+          customerGstin: data.customerGstin || ""
         } as ExtendedOrder);
       } else {
         toast.error("Order not found");
@@ -131,9 +133,13 @@ const InvoiceGenerator = () => {
 
   const getTotalWithOutstanding = () => {
     if (!order) return 0;
+    
+    // Calculate base order total (subtotal + shipping)
+    const baseTotal = calculateSubtotal() + (order.shippingCost || 0);
+    
     return includeOutstanding && order.outstandingAmount 
-      ? order.total + order.outstandingAmount 
-      : order.total;
+      ? baseTotal + order.outstandingAmount 
+      : baseTotal;
   };
 
   const submitForm = async (e: React.FormEvent) => {
@@ -147,7 +153,10 @@ const InvoiceGenerator = () => {
     try {
       setIsSubmitting(true);
       
-      const totalWithOutstanding = getTotalWithOutstanding();
+      const orderTotal = calculateSubtotal() + (order.shippingCost || 0);
+      const totalWithOutstanding = includeOutstanding && order.outstandingAmount 
+        ? orderTotal + order.outstandingAmount 
+        : orderTotal;
 
       // Validate amount paid for partially paid status
       if (paymentStatus === "partially_paid") {
@@ -157,7 +166,8 @@ const InvoiceGenerator = () => {
           return;
         }
         
-        if (amountPaid >= totalWithOutstanding) {
+        const totalAmount = Number(totalWithOutstanding);
+        if (amountPaid >= totalAmount) {
           toast.error("For partially paid invoices, amount must be less than total");
           setIsSubmitting(false);
           return;
@@ -165,11 +175,12 @@ const InvoiceGenerator = () => {
       }
       
       // Create invoice data
-      const invoiceData: Record<string, any> = {
+      const invoiceData: Record<string, unknown> = {
         orderId: order.id,
         customerName: order.customerName,
         customerPhone: order.customerPhone || "",
         deliveryAddress: order.deliveryAddress || "",
+        customerGstin: order.customerGstin || "",
         items: order.items,
         total: totalWithOutstanding,
         shippingCost: order.shippingCost,
@@ -215,7 +226,7 @@ const InvoiceGenerator = () => {
       const newInvoice = {
         id: docRef.id,
         ...invoiceData
-      };
+      } as Invoice;
       
       // Store for download function
       setInvoice(newInvoice);
@@ -417,8 +428,8 @@ const InvoiceGenerator = () => {
                       </div>
                     )}
                     <div className="flex justify-between font-medium mt-2 pt-2 border-t">
-                      <span>Total Amount:</span>
-                      <span>₹{order.total?.toFixed(2) || "0.00"}</span>
+                      <span>Total Order Amount:</span>
+                      <span>₹{(calculateSubtotal() + (order.shippingCost || 0)).toFixed(2)}</span>
                     </div>
 
                     {order.outstandingAmount && order.outstandingAmount > 0 && (
@@ -461,7 +472,7 @@ const InvoiceGenerator = () => {
                             </div>
                             <div className="flex justify-between font-medium mt-2 pt-2 border-t text-red-600">
                               <span>Total with Outstanding:</span>
-                              <span>₹{(order.total + order.outstandingAmount).toFixed(2)}</span>
+                              <span>₹{(calculateSubtotal() + (order.shippingCost || 0) + order.outstandingAmount).toFixed(2)}</span>
                             </div>
                           </>
                         )}

@@ -10,7 +10,7 @@ const firebaseConfig = {
   storageBucket: "harimidhu-shop.appspot.com",
   messagingSenderId: "479567208537",
   appId: "1:479567208537:web:7ba5fe9dac34e1f9ab1148"
-}
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)

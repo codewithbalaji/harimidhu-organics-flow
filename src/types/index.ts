@@ -5,6 +5,7 @@ export interface Customer {
   phone: string;
   address: string;
   createdAt: string;
+  gstin?: string;
 }
 
 export interface StockBatch {
@@ -54,6 +55,7 @@ export interface Order {
   outstandingAmount?: number;
   includeOutstanding?: boolean;
   outstandingNote?: string;
+  customerGstin?: string;
 }
 
 export interface PaymentRecord {
@@ -86,6 +88,7 @@ export interface Invoice {
   outstandingAmount?: number;
   includeOutstanding?: boolean;
   outstandingNote?: string;
+  customerGstin?: string;
 }
 
 export interface DashboardStats {

@@ -174,15 +174,15 @@ const Invoices = () => {
 
   // Calculate total for invoice including outstanding amount
   const calculateTotal = (invoice: Invoice) => {
-    const outstandingAmount = invoice.outstandingAmount || 0;
-    return invoice.total + outstandingAmount;
+    // The invoice.total already includes the outstanding amount
+    // We don't need to add it again
+    return invoice.total;
   };
 
   // Calculate due amount for an invoice
   const calculateDueAmount = (invoice: Invoice) => {
     const amountPaid = invoice.amountPaid || 0;
-    const totalWithOutstanding = calculateTotal(invoice);
-    return totalWithOutstanding - amountPaid;
+    return invoice.total - amountPaid;
   };
 
   if (isLoading) {
@@ -291,7 +291,7 @@ const Invoices = () => {
                                   <TooltipContent>
                                     {invoice.paidStatus === "partially_paid" 
                                       ? `Paid: ₹${(invoice.amountPaid || 0).toFixed(2)} of ₹${invoice.total.toFixed(2)}`
-                                      : `Total due: ₹${invoice.total.toFixed(2)}`}
+                                      : `Due: ₹${invoice.total.toFixed(2)}`}
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -410,6 +410,20 @@ const Invoices = () => {
                     </span>
                   </div>
                 </div>
+                
+                {selectedInvoice.paidStatus !== "paid" && (
+                  <div className="flex justify-between text-sm mb-4 border-t pt-2">
+                    <span className="text-muted-foreground">Amount Paid:</span>
+                    <span className="font-medium ml-2">₹{(selectedInvoice.amountPaid || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                
+                {selectedInvoice.paidStatus !== "paid" && (
+                  <div className="flex justify-between text-sm mb-4 text-red-600">
+                    <span>Amount Due:</span>
+                    <span className="font-medium ml-2">₹{(selectedInvoice.total - (selectedInvoice.amountPaid || 0)).toFixed(2)}</span>
+                  </div>
+                )}
 
                 <ScrollArea className="h-[300px] rounded-md border p-2">
                   {selectedInvoice.paymentHistory && selectedInvoice.paymentHistory.length > 0 ? (

@@ -79,22 +79,29 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
     setItems([...items, { id: items.length + 1, description: "", qty: 1, rate: 0, amount: 0 }])
   }
 
+  // Calculate subtotal - sum of all items (prices already include GST)
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0)
-  const taxRate = parseFloat(companyInfo.taxRate || '0') / 100
-  // Split tax equally for CGST and SGST
-  const totalTaxRate = taxRate
-  const cgstRate = totalTaxRate / 2
-  const sgstRate = totalTaxRate / 2
-  const cgstAmount = subtotal * cgstRate
-  const sgstAmount = subtotal * sgstRate
+  
+  // GST calculations - assuming GST is already included in item prices
+  const gstRate = parseFloat(companyInfo.taxRate || '5') / 100
+  const totalWithoutGST = +(subtotal / (1 + gstRate)).toFixed(2)
+  
+  // Calculate GST component from the total price
+  const cgstRate = gstRate / 2
+  const sgstRate = gstRate / 2
+  const totalGST = +(subtotal - totalWithoutGST).toFixed(2)
+  const cgstAmount = +(totalGST / 2).toFixed(2)
+  const sgstAmount = +(totalGST / 2).toFixed(2)
 
+  // Calculate totals including shipping and outstanding amount
+  const shippingCost = invoice.shippingCost || 0
+  
   // Check if we have outstanding amount
   const hasOutstandingAmount = invoice.outstandingAmount && invoice.outstandingAmount > 0 && invoice.includeOutstanding !== false
   const outstandingAmount = hasOutstandingAmount ? invoice.outstandingAmount : 0
   
-  // Calculate totals including shipping and outstanding amount
-  const shippingCost = invoice.shippingCost || 0
-  const orderTotal = subtotal + cgstAmount + sgstAmount + shippingCost
+  // Total calculations
+  const orderTotal = subtotal + shippingCost
   const total = orderTotal + outstandingAmount
   const totalRounded = Math.round(total)
 
@@ -108,37 +115,37 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
 
   // Convert number to words
   const toWords = (num: number) => {
-    const units = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
-    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     
     const formatWords = (n: number) => {
       if (n < 20) return units[n];
       const digit = n % 10;
-      return tens[Math.floor(n / 10)] + (digit ? '-' + units[digit] : '');
+      return tens[Math.floor(n / 10)] + (digit ? ' ' + units[digit] : '');
     };
     
     const convertToWords = (n: number) => {
-      if (n === 0) return 'zero';
+      if (n === 0) return 'Zero';
       
       let result = '';
       
       if (Math.floor(n / 10000000) > 0) {
-        result += `${convertToWords(Math.floor(n / 10000000))} crore `;
+        result += `${convertToWords(Math.floor(n / 10000000))} Crore `;
         n %= 10000000;
       }
       
       if (Math.floor(n / 100000) > 0) {
-        result += `${formatWords(Math.floor(n / 100000))} lakh `;
+        result += `${formatWords(Math.floor(n / 100000))} Lakh `;
         n %= 100000;
       }
       
       if (Math.floor(n / 1000) > 0) {
-        result += `${formatWords(Math.floor(n / 1000))} thousand `;
+        result += `${formatWords(Math.floor(n / 1000))} Thousand `;
         n %= 1000;
       }
       
       if (Math.floor(n / 100) > 0) {
-        result += `${formatWords(Math.floor(n / 100))} hundred `;
+        result += `${formatWords(Math.floor(n / 100))} Hundred `;
         n %= 100;
       }
       
@@ -149,18 +156,11 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
       return result.trim();
     };
     
-    // Round to 2 decimal places to handle floating point errors
-    const roundedNum = Math.round(num * 100) / 100;
+    // Round to nearest whole number
+    const roundedNum = Math.round(num);
     const wholePart = Math.floor(roundedNum);
-    const decimalPart = Math.round((roundedNum - wholePart) * 100);
     
-    let result = convertToWords(wholePart);
-    
-    if (decimalPart > 0) {
-      result += ` and ${convertToWords(decimalPart)} paise`;
-    }
-    
-    return result.replace(/\b\w/g, char => char.toUpperCase()) + ' only';
+    return convertToWords(wholePart) + ' only';
   };
 
   const handleDownloadPdf = async () => {
@@ -269,23 +269,6 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
             <p className="text-sm mb-1"><span className="font-medium">Invoice No:</span> {invoiceNumber}</p>
             <p className="text-sm mb-1"><span className="font-medium">Invoice Date:</span> {invoiceDate}</p>
             <p className="text-sm mb-1"><span className="font-medium">Payment Terms:</span> {companyInfo.paymentTerms || 'Immediate'}</p>
-            <p className="text-sm mb-1">
-              <span className="font-medium">Payment Status:</span>{" "}
-              <span className={
-                invoice.paidStatus === "paid" ? "text-green-600" : 
-                invoice.paidStatus === "partially_paid" ? "text-amber-600" : 
-                "text-red-600"
-              }>
-                {invoice.paidStatus === "paid" ? "Paid" : 
-                 invoice.paidStatus === "partially_paid" ? "Partially Paid" : 
-                 "Unpaid"}
-              </span>
-            </p>
-            {invoice.paidStatus === "partially_paid" && (
-              <p className="text-sm text-amber-600 mb-1">
-                <span className="font-medium">Amount Paid:</span> ₹{formatCurrency(amountPaid)}
-              </p>
-            )}
           </div>
           
           <div className="border rounded p-3">
@@ -299,7 +282,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
         </div>
         
         <div>
-          <div className="mt-24 border rounded p-3">
+          <div className="mt-20 border rounded p-3">
             <h3 className="font-medium text-gray-700 mb-1">Ship To</h3>
             <p className="text-sm text-gray-600">{invoice.customerName}</p>
             {addressLines.map((line, index) => (
@@ -314,24 +297,11 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
         <table className="min-w-full border">
           <thead>
             <tr className="bg-gray-100">
-              <th className="py-2 px-3 text-left text-sm border">S.No</th>
+              <th className="py-2 px-3 text-left text-sm border">S. No</th>
               <th className="py-2 px-3 text-left text-sm border">Description</th>
               <th className="py-2 px-3 text-center text-sm border">Qty</th>
               <th className="py-2 px-3 text-right text-sm border">Unit Price</th>
               <th className="py-2 px-3 text-right text-sm border">Net Price</th>
-              <th className="py-2 px-3 text-center text-sm border" colSpan={2}>CGST</th>
-              <th className="py-2 px-3 text-center text-sm border" colSpan={2}>SGST</th>
-            </tr>
-            <tr className="bg-gray-50">
-              <th className="py-1 px-3 text-left text-xs border"></th>
-              <th className="py-1 px-3 text-left text-xs border"></th>
-              <th className="py-1 px-3 text-center text-xs border"></th>
-              <th className="py-1 px-3 text-right text-xs border"></th>
-              <th className="py-1 px-3 text-right text-xs border"></th>
-              <th className="py-1 px-3 text-center text-xs border">Rate %</th>
-              <th className="py-1 px-3 text-right text-xs border">Amount</th>
-              <th className="py-1 px-3 text-center text-xs border">Rate %</th>
-              <th className="py-1 px-3 text-right text-xs border">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -344,16 +314,12 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
                 <td className="py-2 px-3 text-center text-sm border">{item.qty}</td>
                 <td className="py-2 px-3 text-right text-sm border">{formatCurrency(item.rate)}</td>
                 <td className="py-2 px-3 text-right text-sm border">{formatCurrency(item.amount)}</td>
-                <td className="py-2 px-3 text-center text-sm border">{(cgstRate * 100).toFixed(1)}</td>
-                <td className="py-2 px-3 text-right text-sm border">{formatCurrency(item.amount * cgstRate)}</td>
-                <td className="py-2 px-3 text-center text-sm border">{(sgstRate * 100).toFixed(1)}</td>
-                <td className="py-2 px-3 text-right text-sm border">{formatCurrency(item.amount * sgstRate)}</td>
               </tr>
             ))}
 
             {!readOnly && (
               <tr>
-                <td colSpan={9} className="py-2 px-3 border">
+                <td colSpan={5} className="py-2 px-3 border">
                   <button onClick={addItem} className="flex items-center text-green-600 text-sm gap-1">
                     <Plus size={16} className="text-green-600" />
                     <span>Add Line Item</span>
@@ -380,23 +346,25 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
                 : (companyInfo.notes || "Thank you for your business.")}
             </p>
           </div>
-
-         
         </div>
         
         <div>
           <div className="border-t pt-2">
             <div className="flex justify-between py-1">
-              <span className="text-sm">Subtotal</span>
-              <span className="text-sm">{formatCurrency(subtotal)}</span>
+              <span className="text-sm">Subtotal (excl. GST)</span>
+              <span className="text-sm">{formatCurrency(totalWithoutGST)}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-sm">CGST</span>
+              <span className="text-sm">CGST @ {(cgstRate * 100).toFixed(1)}%</span>
               <span className="text-sm">{formatCurrency(cgstAmount)}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-sm">SGST</span>
+              <span className="text-sm">SGST @ {(sgstRate * 100).toFixed(1)}%</span>
               <span className="text-sm">{formatCurrency(sgstAmount)}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-sm">Subtotal (incl. GST)</span>
+              <span className="text-sm">{formatCurrency(subtotal)}</span>
             </div>
             {invoice.shippingCost && invoice.shippingCost > 0 && (
               <div className="flex justify-between py-1">
@@ -420,11 +388,16 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
             )}
             
             <div className="flex justify-between py-1 border-t border-gray-200 mt-2">
-              <span className="text-sm font-bold">Grand Total (Rounded off)</span>
-              <span className="text-sm font-bold">₹ {totalRounded}</span>
+              <span className="text-sm font-bold">Total</span>
+              <span className="text-sm font-bold">{formatCurrency(total)}</span>
             </div>
 
-            {invoice.paidStatus !== "paid" && (
+            <div className="flex justify-between py-1">
+              <span className="text-sm font-bold">Grand Total (Rounded off)</span>
+              <span className="text-sm font-bold">Rs. {totalRounded}</span>
+            </div>
+
+            {invoice.paidStatus !== "paid" && dueAmount > 0 && (
               <div className="flex justify-between py-1 mt-2 text-red-600 border-t border-red-100">
                 <span className="text-sm font-medium">Due Amount</span>
                 <span className="text-sm font-medium">₹ {formatCurrency(dueAmount)}</span>

@@ -380,10 +380,7 @@ export const generateInvoicePdf = async (
   doc.text(":", 50, y + 12);
   doc.text(info.paymentTerms || "Immediate", 55, y + 12);
 
-  // Add payment status
-  doc.text("Payment Status", 15, y + 18);
-  doc.text(":", 50, y + 18);
-  doc.text(invoice.paidStatus?.charAt(0).toUpperCase() + invoice.paidStatus?.slice(1).replace(/_/g, ' ') || "Unpaid", 55, y + 18);
+  
 
   // Bill To section
   doc.setFontSize(10);

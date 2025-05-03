@@ -253,28 +253,28 @@ const Invoices = () => {
                       const dueAmount = calculateDueAmount(invoice);
                       
                       return (
-                        <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">{invoice.id}</TableCell>
-                          <TableCell>{invoice.orderId}</TableCell>
-                          <TableCell>{invoice.customerName}</TableCell>
-                          <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>
-                          <TableCell>₹{invoice.total.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <span className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                              invoice.paidStatus === "paid" 
-                                ? "bg-green-100 text-green-800" 
-                                : invoice.paidStatus === "partially_paid"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-red-100 text-red-800"
-                            )}>
-                              {invoice.paidStatus === "paid" 
-                                ? "Paid" 
-                                : invoice.paidStatus === "partially_paid" 
-                                  ? "Partially Paid" 
-                                  : "Unpaid"}
-                            </span>
-                          </TableCell>
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-medium">{invoice.id}</TableCell>
+                        <TableCell>{invoice.orderId}</TableCell>
+                        <TableCell>{invoice.customerName}</TableCell>
+                        <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>
+                        <TableCell>₹{invoice.total.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                            invoice.paidStatus === "paid" 
+                              ? "bg-green-100 text-green-800" 
+                              : invoice.paidStatus === "partially_paid"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
+                          )}>
+                            {invoice.paidStatus === "paid" 
+                              ? "Paid" 
+                              : invoice.paidStatus === "partially_paid" 
+                                ? "Partially Paid" 
+                                : "Unpaid"}
+                          </span>
+                        </TableCell>
                           <TableCell>
                             {invoice.paidStatus !== "paid" && (
                               <TooltipProvider>
@@ -299,36 +299,36 @@ const Invoices = () => {
                               <span className="text-green-600">Paid</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem 
-                                  className="flex items-center gap-2 cursor-pointer"
-                                  onClick={() => handleViewInvoice(invoice.id)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  View Invoice
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="flex items-center gap-2 cursor-pointer"
-                                  onClick={() => handleDownloadInvoice(invoice)}
-                                >
-                                  <Download className="h-4 w-4" />
-                                  Download PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="flex items-center gap-2 cursor-pointer"
-                                  onClick={() => navigate(`/invoices/status/${invoice.id}`)}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Update Status
-                                </DropdownMenuItem>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => handleViewInvoice(invoice.id)}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Invoice
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => handleDownloadInvoice(invoice)}
+                              >
+                                <Download className="h-4 w-4" />
+                                Download PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => navigate(`/invoices/status/${invoice.id}`)}
+                              >
+                                <FileText className="h-4 w-4" />
+                                Update Status
+                              </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   className="flex items-center gap-2 cursor-pointer"
                                   onClick={() => handleViewPaymentHistory(invoice)}
@@ -336,32 +336,32 @@ const Invoices = () => {
                                   <HistoryIcon className="h-4 w-4" />
                                   Payment History
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="flex items-center gap-2 cursor-pointer text-destructive"
-                                  onClick={() => handleDeleteInvoice(invoice.id)}
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 cursor-pointer text-destructive"
+                                onClick={() => handleDeleteInvoice(invoice.id)}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="h-4 w-4"
                                 >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="24"
-                                    height="24"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="h-4 w-4"
-                                  >
-                                    <path d="M3 6h18"></path>
-                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                  </svg>
-                                  Delete Invoice
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
+                                  <path d="M3 6h18"></path>
+                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                </svg>
+                                Delete Invoice
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
                       );
                     })}
                   </TableBody>

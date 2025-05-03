@@ -40,7 +40,7 @@ const Login = () => {
 
     // Validate email domain
     if (formData.email !== "harimidhuorganic@gmail.com") {
-      toast.error("Only harimidhuorganic@gmail.com is allowed to login");
+      toast.error("Only Harimidhu Organic Admin is allowed to login");
       return;
     }
     
@@ -81,7 +81,7 @@ const Login = () => {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="harimidhuorganic@gmail.com"
+                  placeholder="Enter email"
                   value={formData.email}
                   onChange={handleChange}
                   required
@@ -106,7 +106,7 @@ const Login = () => {
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Enter password"
                   value={formData.password}
                   onChange={handleChange}
                   required
@@ -130,7 +130,7 @@ const Login = () => {
           <CardFooter className="justify-center text-center text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <KeyRound className="h-3 w-3" />
-              <span>Access restricted to harimidhuorganic@gmail.com</span>
+              <span>Access restricted to Harimidhu Organic Admin</span>
             </div>
           </CardFooter>
         </Card>

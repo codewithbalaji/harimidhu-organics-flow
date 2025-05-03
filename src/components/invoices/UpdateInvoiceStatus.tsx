@@ -181,46 +181,46 @@ function UpdateInvoiceStatus() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Update Invoice Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6">
-                <div className="grid gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                      Invoice ID
-                    </h3>
-                    <p>{invoice.id}</p>
-                  </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Update Invoice Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6">
+              <div className="grid gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                    Invoice ID
+                  </h3>
+                  <p>{invoice.id}</p>
+                </div>
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">
                       Total Amount
                     </h3>
                     <p>₹{invoice.total.toFixed(2)}</p>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                      Current Status
-                    </h3>
-                    <p className="capitalize">{invoice.paidStatus}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                      New Status
-                    </h3>
-                    <Select value={status} onValueChange={handleStatusChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="unpaid">Unpaid</SelectItem>
-                        <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                    Current Status
+                  </h3>
+                  <p className="capitalize">{invoice.paidStatus}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                    New Status
+                  </h3>
+                  <Select value={status} onValueChange={handleStatusChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                   {status === 'partially_paid' && (
                     <div className="space-y-2">
@@ -252,22 +252,22 @@ function UpdateInvoiceStatus() {
                       onChange={(e) => setPaymentNote(e.target.value)}
                     />
                   </div>
-                </div>
+              </div>
 
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleUpdate}
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleUpdate}
                     disabled={
                       isUpdating || 
                       (status === invoice.paidStatus && amountPaid === (invoice.amountPaid || 0))
                     }
-                  >
-                    {isUpdating ? 'Updating...' : 'Update Status'}
-                  </Button>
-                </div>
+                >
+                  {isUpdating ? 'Updating...' : 'Update Status'}
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
           
           <Card>
             <CardHeader>

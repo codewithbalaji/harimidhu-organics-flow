@@ -14,10 +14,21 @@ import { ordersCollection } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Label } from "@/components/ui/label";
 
+// Extended Order interface to include additional properties used in this component
+interface ExtendedOrder extends Order {
+  customerPhone?: string;
+  deliveryAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  outstandingAmount?: number;
+  includeOutstanding?: boolean;
+  outstandingNote?: string;
+}
+
 const OrderDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<ExtendedOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +56,7 @@ const OrderDetails = () => {
         const orderData = {
           id: orderDoc.id,
           ...data,
+          customerId: data.customerId || "",
           createdAt: data.createdAt || Date.now(),
           status: data.status || "pending",
           items: data.items || [],
@@ -52,9 +64,9 @@ const OrderDetails = () => {
           customerName: data.customerName || "Customer",
           customerPhone: data.customerPhone || "Not specified",
           deliveryAddress: data.deliveryAddress || "Not specified",
-          outstandingAmount: data.outstandingAmount || 0,
+          outstandingAmount: data.outstandingAmount,
           includeOutstanding: data.includeOutstanding !== false // default to true if not set
-        } as Order;
+        } as ExtendedOrder;
         
         console.log("Processed order data:", orderData); // Debug log
         setOrder(orderData);
@@ -119,6 +131,7 @@ const OrderDetails = () => {
   };
 
   const hasOutstandingAmount = order.outstandingAmount && order.outstandingAmount > 0;
+  const hasShippingCost = order.shippingCost && order.shippingCost > 0;
 
   return (
     <DashboardLayout title="Order Details">
@@ -164,12 +177,14 @@ const OrderDetails = () => {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>₹{calculateSubtotal().toFixed(2)}</span>
               </div>
-              {order.shippingCost > 0 && (
+              {/* Display shipping cost row only if it exists and is greater than 0 */}
+           
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping Cost</span>
                   <span>₹{order.shippingCost.toFixed(2)}</span>
                 </div>
-              )}
+         
+              {/* Display outstanding amount row only if it exists and is greater than 0 */}
               {hasOutstandingAmount && (
                 <div className="flex justify-between">
                   <div className="flex items-center gap-1">
@@ -186,7 +201,7 @@ const OrderDetails = () => {
               )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Amount</span>
-                <span className="font-medium">₹{order.total?.toFixed(2) || "0.00"}</span>
+                <span className="font-medium">₹{order.total.toFixed(2)}</span>
               </div>
               
               {hasOutstandingAmount && order.outstandingNote && (
@@ -207,18 +222,20 @@ const OrderDetails = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Delivery Address</Label>
-                  <p className="text-sm text-muted-foreground">{order?.deliveryAddress}</p>
+                  <p className="text-sm text-muted-foreground">{order.deliveryAddress}</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Customer Phone</Label>
-                  <p className="text-sm text-muted-foreground">{order?.customerPhone}</p>
+                  <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Coordinates</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {order?.latitude}, {order?.longitude}
-                  </p>
-                </div>
+                {order.latitude && order.longitude && (
+                  <div className="space-y-2">
+                    <Label>Coordinates</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {order.latitude}, {order.longitude}
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

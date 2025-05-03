@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Save, Trash2, Search, Pencil, InfoIcon } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Search, Pencil, InfoIcon, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrderItem, Customer, Product, Order } from "@/types";
 import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
@@ -29,6 +29,7 @@ import { getDocs, query, where, orderBy, updateDoc, doc, getDoc } from "firebase
 import { db } from "@/firebase";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 const EditOrder = () => {
   const { id } = useParams<{ id: string }>();
@@ -558,6 +559,12 @@ const EditOrder = () => {
                           </Tooltip>
                         </TooltipProvider>
                       </div>
+                      {outstandingAmount > 0 && (
+                        <Badge className={`flex items-center gap-1 ${includeOutstanding ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'}`}>
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {includeOutstanding ? 'Included' : 'Not included'}
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -567,7 +574,9 @@ const EditOrder = () => {
                           checked={includeOutstanding}
                           onCheckedChange={setIncludeOutstanding}
                         />
-                        <Label htmlFor="include-outstanding">Include in total</Label>
+                        <Label htmlFor="include-outstanding" className={includeOutstanding ? "text-amber-800" : ""}>
+                          {includeOutstanding ? "Included in total" : "Not included in total"}
+                        </Label>
                       </div>
 
                       <div className="flex items-center">
@@ -579,6 +588,7 @@ const EditOrder = () => {
                           value={outstandingAmount}
                           onChange={(e) => setOutstandingAmount(parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
+                          className={outstandingAmount > 0 && includeOutstanding ? "border-amber-300" : ""}
                         />
                       </div>
 
@@ -587,6 +597,12 @@ const EditOrder = () => {
                         value={outstandingNote}
                         onChange={(e) => setOutstandingNote(e.target.value)}
                       />
+                      
+                      {outstandingAmount > 0 && (
+                        <div className={`text-sm p-2 rounded-md ${includeOutstanding ? 'bg-amber-50 text-amber-800' : 'bg-gray-50 text-gray-700'}`}>
+                          <span className="font-medium">Summary:</span> Outstanding amount of ₹{outstandingAmount.toFixed(2)} will be {includeOutstanding ? 'added to' : 'tracked separately from'} the order total.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

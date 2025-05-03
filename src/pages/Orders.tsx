@@ -299,11 +299,18 @@ const Orders = () => {
                                 <TooltipTrigger asChild>
                                   <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-sm flex items-center">
                                     <AlertTriangle className="h-3 w-3 mr-0.5" />
-                                    Outstanding
+                                    {order.includeOutstanding !== false 
+                                      ? 'Outstanding' 
+                                      : <span className="flex items-center">Outstanding <span className="text-[10px] ml-0.5">(not incl.)</span></span>}
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Includes outstanding amount of ₹{order.outstandingAmount?.toFixed(2)}</p>
+                                  <p>
+                                    {order.includeOutstanding !== false 
+                                      ? `Includes outstanding amount of ₹${order.outstandingAmount?.toFixed(2)}` 
+                                      : `Outstanding amount of ₹${order.outstandingAmount?.toFixed(2)} (not included in total)`}
+                                    {order.outstandingNote && <span className="block mt-1 text-xs italic">{order.outstandingNote}</span>}
+                                  </p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -316,7 +323,36 @@ const Orders = () => {
                         month: '2-digit',
                         year: '2-digit'
                       })}</TableCell>
-                      <TableCell>₹{formatNumber(order.total)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>₹{formatNumber(order.total)}</span>
+                          {hasOutstandingAmount(order) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className={`flex items-center mt-1 text-xs ${order.includeOutstanding !== false ? 'text-amber-700' : 'text-gray-600'}`}>
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    <span>
+                                      {order.includeOutstanding !== false 
+                                        ? `Includes ₹${order.outstandingAmount.toFixed(2)} outstanding` 
+                                        : `₹${order.outstandingAmount.toFixed(2)} outstanding (not included)`}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{order.includeOutstanding !== false 
+                                    ? `This order includes an outstanding amount of ₹${order.outstandingAmount.toFixed(2)}` 
+                                    : `Outstanding amount of ₹${order.outstandingAmount.toFixed(2)} is tracked but not included in this total`}
+                                  </p>
+                                  {order.outstandingNote && (
+                                    <p className="mt-1 text-xs border-t pt-1">{order.outstandingNote}</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <span className={cn(
                           "text-xs px-2 py-1 rounded-full capitalize",

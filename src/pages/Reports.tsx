@@ -53,6 +53,36 @@ interface InventoryItem {
   stock: number;
   lowStock: boolean;
   price: number;
+  costPrice: number;
+  unit: string;
+}
+
+interface SalesReportItem {
+  id: string;
+  invoiceNumber: string;
+  date: Date;
+  customer: string;
+  gstNumber: string;
+  total: number;
+  paid: boolean;
+}
+
+interface OutstandingItem {
+  id: string;
+  invoiceNumber: string;
+  date: Date;
+  customer: string;
+  total: number;
+  dueAmount: number;
+  daysOverdue: number;
+}
+
+interface ProfitLossItem {
+  period: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;
 }
 
 const Reports = () => {
@@ -73,6 +103,9 @@ const Reports = () => {
   const [categorySalesData, setCategorySalesData] = useState<CategorySalesItem[]>([]);
   const [topSellingProducts, setTopSellingProducts] = useState<ProductSalesItem[]>([]);
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
+  const [salesReportData, setSalesReportData] = useState<SalesReportItem[]>([]);
+  const [outstandingData, setOutstandingData] = useState<OutstandingItem[]>([]);
+  const [profitLossData, setProfitLossData] = useState<ProfitLossItem[]>([]);
   const [customerInsights, setCustomerInsights] = useState<CustomerInsights>({
     totalCustomers: 0,
     newCustomers: 0,
@@ -147,9 +180,15 @@ const Reports = () => {
       // Generate customer insights
       await generateCustomerInsights(ordersData);
       
-      // Fetch inventory data if needed
+      // Handle specific report types
       if (reportType === "inventory") {
         await fetchInventoryData();
+      } else if (reportType === "sales-report") {
+        await generateSalesReport(ordersData);
+      } else if (reportType === "profit-loss") {
+        await generateProfitLossReport(ordersData);
+      } else if (reportType === "outstanding") {
+        await generateOutstandingReport(ordersData);
       }
       
     } catch (error) {
@@ -167,12 +206,29 @@ const Reports = () => {
       const inventoryItems: InventoryItem[] = productsSnapshot.docs.map(doc => {
         const data = doc.data() as DocumentData;
         
-        // Calculate total stock from stock_batches if available
+        // Calculate total stock and average cost price from stock_batches if available
         let totalStock = 0;
-        if (data.stock_batches && Array.isArray(data.stock_batches)) {
-          totalStock = data.stock_batches.reduce((sum, batch) => sum + (batch.quantity || 0), 0);
+        let totalCost = 0;
+        let costPrice = 0;
+        
+        if (data.stock_batches && Array.isArray(data.stock_batches) && data.stock_batches.length > 0) {
+          // Calculate total stock
+          totalStock = data.stock_batches.reduce((sum, batch) => {
+            const batchQuantity = Number(batch.quantity) || 0;
+            return sum + batchQuantity;
+          }, 0);
+          
+          // Calculate average cost price
+          totalCost = data.stock_batches.reduce((sum, batch) => {
+            const batchQuantity = Number(batch.quantity) || 0;
+            const batchCostPrice = Number(batch.cost_price) || 0;
+            return sum + (batchQuantity * batchCostPrice);
+          }, 0);
+          
+          costPrice = totalStock > 0 ? totalCost / totalStock : 0;
         } else {
-          totalStock = data.stock || 0;
+          totalStock = Number(data.stock) || 0;
+          costPrice = Number(data.costPrice) || 0;
         }
         
         // Determine if stock is low (less than or equal to 10)
@@ -184,7 +240,9 @@ const Reports = () => {
           category: data.category || 'Uncategorized',
           stock: totalStock,
           lowStock: isLowStock,
-          price: data.price || 0
+          price: Number(data.price) || 0,
+          costPrice: costPrice,
+          unit: data.unit || 'Unit' // Default to 'Unit' if not specified
         };
       });
       
@@ -475,6 +533,306 @@ const Reports = () => {
     }
   };
 
+  const generateSalesReport = async (ordersData) => {
+    try {
+      // Get customers data to map customer names and GST numbers
+      const customersSnapshot = await getDocs(customersCollection);
+      const customersMap = new Map();
+      
+      customersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        customersMap.set(doc.id, {
+          name: data.name || data.businessName || 'Unknown Customer',
+          gstNumber: data.gstNumber || 'N/A'
+        });
+      });
+      
+      // Map orders to sales report format
+      const salesReport = ordersData.map(order => {
+        const customer = customersMap.get(order.customerId) || { name: 'Unknown Customer', gstNumber: 'N/A' };
+        
+        return {
+          id: order.id,
+          invoiceNumber: order.invoiceNumber || `INV-${order.id.substring(0, 6)}`,
+          date: order.createdAt,
+          customer: customer.name,
+          gstNumber: customer.gstNumber,
+          total: order.total || 0,
+          paid: order.paymentStatus === 'paid'
+        };
+      });
+      
+      // Sort by date - newest first
+      salesReport.sort((a, b) => b.date.getTime() - a.date.getTime());
+      
+      setSalesReportData(salesReport);
+    } catch (error) {
+      console.error("Error generating sales report:", error);
+      toast.error("Failed to generate sales report");
+    }
+  };
+
+  const generateOutstandingReport = async (ordersData) => {
+    try {
+      // Get customers data to map customer names
+      const customersSnapshot = await getDocs(customersCollection);
+      const customersMap = new Map();
+      
+      customersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        customersMap.set(doc.id, {
+          name: data.name || data.businessName || 'Unknown Customer'
+        });
+      });
+      
+      // Filter to get only unpaid or partially paid orders
+      const outstandingOrders = ordersData.filter(order => 
+        order.paymentStatus === 'pending' || 
+        order.paymentStatus === 'partial' ||
+        (order.total > (order.amountPaid || 0))
+      );
+      
+      // Map to outstanding report format
+      const today = new Date();
+      const outstanding = outstandingOrders.map(order => {
+        const customer = customersMap.get(order.customerId) || { name: 'Unknown Customer' };
+        const dueAmount = order.total - (order.amountPaid || 0);
+        
+        // Calculate days overdue
+        const dueDate = order.dueDate ? new Date(
+          typeof order.dueDate.toDate === 'function' ? order.dueDate.toDate() : order.dueDate
+        ) : order.createdAt;
+        
+        const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+        
+        return {
+          id: order.id,
+          invoiceNumber: order.invoiceNumber || `INV-${order.id.substring(0, 6)}`,
+          date: order.createdAt,
+          customer: customer.name,
+          total: order.total || 0,
+          dueAmount,
+          daysOverdue
+        };
+      });
+      
+      // Sort by days overdue (highest first)
+      outstanding.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      
+      setOutstandingData(outstanding);
+    } catch (error) {
+      console.error("Error generating outstanding report:", error);
+      toast.error("Failed to generate outstanding report");
+    }
+  };
+
+  const generateProfitLossReport = async (ordersData) => {
+    try {
+      // Get products to calculate cost prices
+      const productsSnapshot = await getDocs(productsCollection);
+      const productsMap = new Map();
+      
+      productsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        productsMap.set(doc.id, {
+          costPrice: data.costPrice || 0,
+          price: data.price || 0
+        });
+      });
+      
+      // Determine periods based on timeFrame
+      let periods = [];
+      let profitLossMap = new Map();
+      
+      if (timeFrame === "monthly") {
+        // Monthly data for current year
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        periods = monthNames;
+        
+        // Initialize profit loss map for all months
+        monthNames.forEach(month => {
+          profitLossMap.set(month, { revenue: 0, cost: 0, profit: 0, margin: 0 });
+        });
+        
+        // Current year filter
+        const currentYear = new Date().getFullYear();
+        
+        // Aggregate by month
+        ordersData.forEach(order => {
+          if (!order.createdAt || order.createdAt.getFullYear() !== currentYear) return;
+          
+          const monthIndex = order.createdAt.getMonth();
+          const month = monthNames[monthIndex];
+          
+          // Calculate revenue
+          const revenue = order.total || 0;
+          profitLossMap.get(month).revenue += revenue;
+          
+          // Calculate cost
+          let cost = 0;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const productCost = item.productId && productsMap.get(item.productId) 
+                ? (productsMap.get(item.productId).costPrice * (item.quantity || 1))
+                : 0;
+              cost += productCost;
+            });
+          }
+          
+          profitLossMap.get(month).cost += cost;
+        });
+      } else if (timeFrame === "weekly") {
+        // Weekly data
+        const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        periods = dayNames;
+        
+        // Initialize profit loss map for all days
+        dayNames.forEach(day => {
+          profitLossMap.set(day, { revenue: 0, cost: 0, profit: 0, margin: 0 });
+        });
+        
+        // Current week filter
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); // Start from Monday
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        // Aggregate by day
+        ordersData.forEach(order => {
+          if (!order.createdAt || order.createdAt < startOfWeek) return;
+          
+          const dayIndex = order.createdAt.getDay();
+          const dayName = dayNames[dayIndex === 0 ? 6 : dayIndex - 1]; // Adjust for Monday start
+          
+          // Calculate revenue
+          const revenue = order.total || 0;
+          profitLossMap.get(dayName).revenue += revenue;
+          
+          // Calculate cost
+          let cost = 0;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const productCost = item.productId && productsMap.get(item.productId) 
+                ? (productsMap.get(item.productId).costPrice * (item.quantity || 1))
+                : 0;
+              cost += productCost;
+            });
+          }
+          
+          profitLossMap.get(dayName).cost += cost;
+        });
+      } else if (timeFrame === "daily") {
+        // Last 7 days
+        const dates = [];
+        
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          date.setHours(0, 0, 0, 0);
+          
+          const dateString = `${date.getDate()}/${date.getMonth() + 1}`;
+          dates.push(dateString);
+          profitLossMap.set(dateString, { revenue: 0, cost: 0, profit: 0, margin: 0 });
+        }
+        
+        periods = dates;
+        
+        // Aggregate by day
+        ordersData.forEach(order => {
+          if (!order.createdAt) return;
+          
+          // Check if the order is from the last 7 days
+          const orderDate = order.createdAt;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const timeDiff = today.getTime() - orderDate.getTime();
+          const dayDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+          
+          if (dayDiff >= 0 && dayDiff < 7) {
+            const dateString = `${orderDate.getDate()}/${orderDate.getMonth() + 1}`;
+            
+            // Calculate revenue
+            const revenue = order.total || 0;
+            
+            if (profitLossMap.has(dateString)) {
+              profitLossMap.get(dateString).revenue += revenue;
+              
+              // Calculate cost
+              let cost = 0;
+              if (order.items && Array.isArray(order.items)) {
+                order.items.forEach(item => {
+                  const productCost = item.productId && productsMap.get(item.productId) 
+                    ? (productsMap.get(item.productId).costPrice * (item.quantity || 1))
+                    : 0;
+                  cost += productCost;
+                });
+              }
+              
+              profitLossMap.get(dateString).cost += cost;
+            }
+          }
+        });
+      } else {
+        // Yearly data for last 5 years
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({ length: 5 }, (_, i) => (currentYear - 4 + i).toString());
+        periods = years;
+        
+        // Initialize profit loss map for all years
+        years.forEach(year => {
+          profitLossMap.set(year, { revenue: 0, cost: 0, profit: 0, margin: 0 });
+        });
+        
+        // Aggregate by year
+        ordersData.forEach(order => {
+          if (!order.createdAt) return;
+          
+          const year = order.createdAt.getFullYear().toString();
+          if (years.includes(year)) {
+            // Calculate revenue
+            const revenue = order.total || 0;
+            profitLossMap.get(year).revenue += revenue;
+            
+            // Calculate cost
+            let cost = 0;
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach(item => {
+                const productCost = item.productId && productsMap.get(item.productId) 
+                  ? (productsMap.get(item.productId).costPrice * (item.quantity || 1))
+                  : 0;
+                cost += productCost;
+              });
+            }
+            
+            profitLossMap.get(year).cost += cost;
+          }
+        });
+      }
+      
+      // Calculate profit and margin for each period
+      profitLossMap.forEach((data, period) => {
+        data.profit = data.revenue - data.cost;
+        data.margin = data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0;
+      });
+      
+      // Convert to array for display
+      const profitLossData = periods.map(period => ({
+        period,
+        revenue: profitLossMap.get(period).revenue,
+        cost: profitLossMap.get(period).cost,
+        profit: profitLossMap.get(period).profit,
+        margin: profitLossMap.get(period).margin
+      }));
+      
+      setProfitLossData(profitLossData);
+      
+    } catch (error) {
+      console.error("Error generating profit/loss report:", error);
+      toast.error("Failed to generate profit/loss report");
+    }
+  };
+
   const handleDownload = async () => {
     if (!chartRef.current) {
       toast.error("Chart not available for download");
@@ -574,7 +932,7 @@ const Reports = () => {
             pdf.addPage();
             yPosition = 20;
           }
-          pdf.text(`${item.name} (${item.category}): ${item.stock} units left`, 20, yPosition);
+          pdf.text(`${item.name} (${item.category}): ${item.stock} ${item.unit} left`, 20, yPosition);
         });
       }
       
@@ -614,9 +972,12 @@ const Reports = () => {
                   <SelectValue placeholder="Report Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sales">Sales Report</SelectItem>
+                  <SelectItem value="sales">Sales Overview</SelectItem>
                   <SelectItem value="category">Category Sales</SelectItem>
                   <SelectItem value="inventory">Inventory Report</SelectItem>
+                  <SelectItem value="profit-loss">Profit & Loss</SelectItem>
+                  <SelectItem value="sales-report">Invoice Report</SelectItem>
+                  <SelectItem value="outstanding">Outstanding Invoices</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -800,7 +1161,7 @@ const Reports = () => {
                   <div className="bg-muted/30 rounded-lg p-4 text-center">
                     <h3 className="text-xs text-muted-foreground mb-1">Total Inventory Value</h3>
                     <p className="text-2xl font-semibold">
-                      ₹{inventoryData.reduce((sum, item) => sum + (item.stock * item.price), 0).toFixed(2)}
+                      ₹{inventoryData.reduce((sum, item) => sum + (item.stock * item.costPrice), 0).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -825,7 +1186,7 @@ const Reports = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="category" />
                         <YAxis />
-                        <Tooltip formatter={(value) => [`${value} units`, 'Stock']} />
+                        <Tooltip formatter={(value) => [`${value} items`, 'Stock']} />
                         <Bar dataKey="stock" fill="#4A7C59" />
                       </RechartsBarChart>
                     </ResponsiveContainer>
@@ -852,7 +1213,7 @@ const Reports = () => {
                               <span className="font-medium">{item.name}</span>
                               <span className="text-xs text-muted-foreground">{item.category}</span>
                             </span>
-                            <span className="font-medium text-red-600">{item.stock} units left</span>
+                            <span className="font-medium text-red-600">{item.stock} {item.unit} left</span>
                           </li>
                         ))}
                     </ul>
@@ -871,7 +1232,8 @@ const Reports = () => {
                           <th className="text-left p-3">Product Name</th>
                           <th className="text-left p-3">Category</th>
                           <th className="text-right p-3">Stock</th>
-                          <th className="text-right p-3">Price</th>
+                          <th className="text-right p-3">Unit</th>
+                          <th className="text-right p-3">Cost Price</th>
                           <th className="text-right p-3">Value</th>
                         </tr>
                       </thead>
@@ -883,8 +1245,9 @@ const Reports = () => {
                             <td className={`p-3 text-right ${item.lowStock ? 'text-red-600 font-medium' : ''}`}>
                               {item.stock}
                             </td>
-                            <td className="p-3 text-right">₹{item.price.toFixed(2)}</td>
-                            <td className="p-3 text-right">₹{(item.stock * item.price).toFixed(2)}</td>
+                            <td className="p-3 text-right">{item.unit}</td>
+                            <td className="p-3 text-right">₹{item.costPrice.toFixed(2)}</td>
+                            <td className="p-3 text-right">₹{(item.stock * item.costPrice).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -897,7 +1260,7 @@ const Reports = () => {
         )}
         
         {/* Additional Report Insights */}
-        {reportType !== "inventory" && (
+        {reportType !== "inventory" && reportType !== "profit-loss" && reportType !== "sales-report" && reportType !== "outstanding" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-2">
@@ -951,6 +1314,397 @@ const Reports = () => {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Sales Report (Invoice List) */}
+        {reportType === "sales-report" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoice Report</CardTitle>
+              <CardDescription>
+                {useDateRange 
+                  ? `Invoice details from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+                  : "Recent invoices"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div ref={chartRef} className="space-y-4">
+                {/* Sales Report Table */}
+                <div className="border rounded-md overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-muted/20">
+                        <tr>
+                          <th className="text-left p-3">Invoice #</th>
+                          <th className="text-left p-3">Date</th>
+                          <th className="text-left p-3">Customer</th>
+                          <th className="text-left p-3">GST Number</th>
+                          <th className="text-right p-3">Amount</th>
+                          <th className="text-center p-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesReportData.length > 0 ? (
+                          salesReportData.map(invoice => (
+                            <tr key={invoice.id} className="border-t">
+                              <td className="p-3 font-medium">{invoice.invoiceNumber}</td>
+                              <td className="p-3">{invoice.date.toLocaleDateString()}</td>
+                              <td className="p-3">{invoice.customer}</td>
+                              <td className="p-3">{invoice.gstNumber}</td>
+                              <td className="p-3 text-right">₹{invoice.total.toFixed(2)}</td>
+                              <td className="p-3 text-center">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  invoice.paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {invoice.paid ? 'Paid' : 'Pending'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                              No invoice data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              
+                {/* Sales Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Total Sales</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{salesReportData.reduce((sum, item) => sum + item.total, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Total Invoices</h3>
+                    <p className="text-2xl font-semibold">{salesReportData.length}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Paid Invoices</h3>
+                    <p className="text-2xl font-semibold">
+                      {salesReportData.filter(invoice => invoice.paid).length} 
+                      <span className="text-sm text-muted-foreground ml-1">
+                        ({salesReportData.length > 0 
+                          ? Math.round((salesReportData.filter(invoice => invoice.paid).length / salesReportData.length) * 100) 
+                          : 0}%)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Profit & Loss Report */}
+        {reportType === "profit-loss" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Profit & Loss Report</CardTitle>
+              <CardDescription>
+                {useDateRange 
+                  ? `Financial analysis from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+                  : timeFrame === "monthly" ? "Monthly P&L for the current year" : 
+                    timeFrame === "weekly" ? "Weekly P&L for the current week" :
+                    timeFrame === "daily" ? "Daily P&L for the last 7 days" : "Yearly P&L"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6" ref={chartRef}>
+                {/* P&L Chart */}
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart
+                      data={profitLossData}
+                      margin={{
+                        top: 20,
+                        right: 30,
+                        left: 20,
+                        bottom: 5,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value) => [`₹${value}`, '']}
+                      />
+                      <Legend />
+                      <Bar dataKey="revenue" name="Revenue" fill="#4A7C59" />
+                      <Bar dataKey="cost" name="Cost" fill="#FF8042" />
+                      <Bar dataKey="profit" name="Profit" fill="#0088FE" />
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* P&L Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Total Revenue</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{profitLossData.reduce((sum, item) => sum + item.revenue, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Total Cost</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{profitLossData.reduce((sum, item) => sum + item.cost, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Net Profit</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{profitLossData.reduce((sum, item) => sum + item.profit, 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* P&L Table */}
+                <div className="border rounded-md overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-muted/20">
+                        <tr>
+                          <th className="text-left p-3">Period</th>
+                          <th className="text-right p-3">Revenue</th>
+                          <th className="text-right p-3">Cost</th>
+                          <th className="text-right p-3">Profit</th>
+                          <th className="text-right p-3">Margin</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {profitLossData.map((item, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="p-3 font-medium">{item.period}</td>
+                            <td className="p-3 text-right">₹{item.revenue.toFixed(2)}</td>
+                            <td className="p-3 text-right">₹{item.cost.toFixed(2)}</td>
+                            <td className="p-3 text-right">
+                              <span className={item.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                ₹{item.profit.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <span className={item.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {item.margin.toFixed(1)}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-muted/10">
+                        <tr className="border-t-2">
+                          <td className="p-3 font-medium">Total</td>
+                          <td className="p-3 text-right font-medium">
+                            ₹{profitLossData.reduce((sum, item) => sum + item.revenue, 0).toFixed(2)}
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            ₹{profitLossData.reduce((sum, item) => sum + item.cost, 0).toFixed(2)}
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            <span className={profitLossData.reduce((sum, item) => sum + item.profit, 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              ₹{profitLossData.reduce((sum, item) => sum + item.profit, 0).toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            {profitLossData.reduce((sum, item) => sum + item.revenue, 0) > 0 ? (
+                              <span className={profitLossData.reduce((sum, item) => sum + item.profit, 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {((profitLossData.reduce((sum, item) => sum + item.profit, 0) / profitLossData.reduce((sum, item) => sum + item.revenue, 0)) * 100).toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span>0.0%</span>
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Outstanding Report */}
+        {reportType === "outstanding" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Outstanding Invoices</CardTitle>
+              <CardDescription>
+                Unpaid and overdue invoices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div ref={chartRef} className="space-y-6">
+                {/* Outstanding Summary Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Total Outstanding</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{outstandingData.reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Overdue Invoices</h3>
+                    <p className="text-2xl font-semibold">{outstandingData.filter(item => item.daysOverdue > 0).length}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-4 text-center">
+                    <h3 className="text-xs text-muted-foreground mb-1">Outstanding Today</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{outstandingData.filter(item => item.daysOverdue === 0).reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Outstanding by Aging */}
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={[
+                          { 
+                            name: 'Not Yet Due', 
+                            value: outstandingData.filter(item => item.daysOverdue === 0).reduce((sum, item) => sum + item.dueAmount, 0)
+                          },
+                          { 
+                            name: '1-30 Days', 
+                            value: outstandingData.filter(item => item.daysOverdue > 0 && item.daysOverdue <= 30).reduce((sum, item) => sum + item.dueAmount, 0)
+                          },
+                          { 
+                            name: '31-60 Days', 
+                            value: outstandingData.filter(item => item.daysOverdue > 30 && item.daysOverdue <= 60).reduce((sum, item) => sum + item.dueAmount, 0)
+                          },
+                          { 
+                            name: '61-90 Days', 
+                            value: outstandingData.filter(item => item.daysOverdue > 60 && item.daysOverdue <= 90).reduce((sum, item) => sum + item.dueAmount, 0)
+                          },
+                          { 
+                            name: 'Over 90 Days', 
+                            value: outstandingData.filter(item => item.daysOverdue > 90).reduce((sum, item) => sum + item.dueAmount, 0)
+                          }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {[0, 1, 2, 3, 4].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [`₹${value.toFixed(2)}`, '']} />
+                      <Legend />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Outstanding Table */}
+                <div className="border rounded-md overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-muted/20">
+                        <tr>
+                          <th className="text-left p-3">Invoice #</th>
+                          <th className="text-left p-3">Date</th>
+                          <th className="text-left p-3">Customer</th>
+                          <th className="text-right p-3">Invoice Amount</th>
+                          <th className="text-right p-3">Outstanding</th>
+                          <th className="text-center p-3">Days Overdue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {outstandingData.length > 0 ? (
+                          outstandingData.map(invoice => (
+                            <tr key={invoice.id} className="border-t">
+                              <td className="p-3 font-medium">{invoice.invoiceNumber}</td>
+                              <td className="p-3">{invoice.date.toLocaleDateString()}</td>
+                              <td className="p-3">{invoice.customer}</td>
+                              <td className="p-3 text-right">₹{invoice.total.toFixed(2)}</td>
+                              <td className="p-3 text-right font-medium">₹{invoice.dueAmount.toFixed(2)}</td>
+                              <td className="p-3 text-center">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  invoice.daysOverdue === 0 ? 'bg-green-100 text-green-800' : 
+                                  invoice.daysOverdue <= 30 ? 'bg-yellow-100 text-yellow-800' : 
+                                  invoice.daysOverdue <= 60 ? 'bg-orange-100 text-orange-800' : 
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {invoice.daysOverdue === 0 ? 'Not Due' : `${invoice.daysOverdue} days`}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                              No outstanding invoices
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Aging Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="border rounded-md p-4">
+                    <h3 className="text-sm font-medium mb-2">Today's Outstanding</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{outstandingData.filter(item => item.daysOverdue === 0).reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {outstandingData.filter(item => item.daysOverdue === 0).length} invoices
+                    </p>
+                  </div>
+                  <div className="border rounded-md p-4">
+                    <h3 className="text-sm font-medium mb-2">This Month's Outstanding</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{outstandingData.filter(item => {
+                        const today = new Date();
+                        const thisMonth = today.getMonth();
+                        const thisYear = today.getFullYear();
+                        return item.date.getMonth() === thisMonth && item.date.getFullYear() === thisYear;
+                      }).reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {outstandingData.filter(item => {
+                        const today = new Date();
+                        const thisMonth = today.getMonth();
+                        const thisYear = today.getFullYear();
+                        return item.date.getMonth() === thisMonth && item.date.getFullYear() === thisYear;
+                      }).length} invoices
+                    </p>
+                  </div>
+                  <div className="border rounded-md p-4">
+                    <h3 className="text-sm font-medium mb-2">1-30 Days Overdue</h3>
+                    <p className="text-2xl font-semibold">
+                      ₹{outstandingData.filter(item => item.daysOverdue > 0 && item.daysOverdue <= 30).reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {outstandingData.filter(item => item.daysOverdue > 0 && item.daysOverdue <= 30).length} invoices
+                    </p>
+                  </div>
+                  <div className="border rounded-md p-4">
+                    <h3 className="text-sm font-medium mb-2">Over 30 Days Overdue</h3>
+                    <p className="text-2xl font-semibold text-red-600">
+                      ₹{outstandingData.filter(item => item.daysOverdue > 30).reduce((sum, item) => sum + item.dueAmount, 0).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {outstandingData.filter(item => item.daysOverdue > 30).length} invoices
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </DashboardLayout>

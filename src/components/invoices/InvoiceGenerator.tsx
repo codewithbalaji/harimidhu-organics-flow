@@ -13,18 +13,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Save, FileText, Download } from "lucide-react";
+import { ArrowLeft, Save, FileText, Download, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Order, Invoice } from "@/types";
 import { Invoice as IndexInvoice } from "@/types/index";
 import { ordersCollection, invoicesCollection, db } from "@/firebase";
 import { doc, getDoc, addDoc } from "firebase/firestore";
 import { generateInvoicePdf } from "@/utils/pdfUtils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Extended Order type to include properties needed for Invoice
 interface ExtendedOrder extends Order {
   customerPhone?: string;
   deliveryAddress?: string;
+  outstandingAmount?: number;
+  outstandingNote?: string;
 }
 
 const InvoiceGenerator = () => {
@@ -33,16 +36,18 @@ const InvoiceGenerator = () => {
   const [order, setOrder] = useState<ExtendedOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("unpaid");
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid" | "partially_paid">("unpaid");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentDate, setPaymentDate] = useState<string>("");
   const [paymentReference, setPaymentReference] = useState<string>("");
+  const [amountPaid, setAmountPaid] = useState(0);
   const [dueDate, setDueDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 14); // 14 days from now
     return date.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState("");
+  const [includeOutstanding, setIncludeOutstanding] = useState(true);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
@@ -75,7 +80,9 @@ const InvoiceGenerator = () => {
           // Add optional properties that may be in data
           customerPhone: data.customerPhone || "",
           deliveryAddress: data.deliveryAddress || "",
-          shippingCost: data.shippingCost
+          shippingCost: data.shippingCost,
+          outstandingAmount: data.outstandingAmount,
+          outstandingNote: data.outstandingNote
         } as ExtendedOrder);
       } else {
         toast.error("Order not found");
@@ -90,6 +97,29 @@ const InvoiceGenerator = () => {
     }
   };
 
+  useEffect(() => {
+    // When payment status changes, update amount paid
+    if (paymentStatus === "paid" && order) {
+      const totalWithOutstanding = includeOutstanding && order.outstandingAmount 
+        ? order.total + order.outstandingAmount 
+        : order.total;
+      setAmountPaid(totalWithOutstanding);
+    } else if (paymentStatus === "unpaid") {
+      setAmountPaid(0);
+    }
+  }, [paymentStatus, order, includeOutstanding]);
+
+  const handlePaymentStatusChange = (value: "paid" | "unpaid" | "partially_paid") => {
+    setPaymentStatus(value);
+  };
+
+  const getTotalWithOutstanding = () => {
+    if (!order) return 0;
+    return includeOutstanding && order.outstandingAmount 
+      ? order.total + order.outstandingAmount 
+      : order.total;
+  };
+
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -101,23 +131,66 @@ const InvoiceGenerator = () => {
     try {
       setIsSubmitting(true);
       
+      const totalWithOutstanding = getTotalWithOutstanding();
+
+      // Validate amount paid for partially paid status
+      if (paymentStatus === "partially_paid") {
+        if (amountPaid <= 0) {
+          toast.error("Please enter the amount paid");
+          setIsSubmitting(false);
+          return;
+        }
+        
+        if (amountPaid >= totalWithOutstanding) {
+          toast.error("For partially paid invoices, amount must be less than total");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
       // Create invoice data
-      const invoiceData = {
+      const invoiceData: Record<string, any> = {
         orderId: order.id,
         customerName: order.customerName,
         customerPhone: order.customerPhone || "",
         deliveryAddress: order.deliveryAddress || "",
         items: order.items,
-        total: order.total,
+        total: totalWithOutstanding,
         shippingCost: order.shippingCost,
         paidStatus: paymentStatus,
         paymentMethod: paymentMethod || "",
-        paymentDate: paymentStatus === 'paid' && paymentDate ? new Date(paymentDate).getTime() : null,
+        paymentDate: paymentStatus !== 'unpaid' && paymentDate ? new Date(paymentDate).getTime() : null,
         paymentReference: paymentReference || "",
         dueDate: new Date(dueDate).getTime(),
         notes: notes || "",
         createdAt: Date.now()
       };
+      
+      // Add outstandingAmount and outstandingNote if included
+      if (includeOutstanding && order.outstandingAmount) {
+        invoiceData.outstandingAmount = order.outstandingAmount;
+        invoiceData.outstandingNote = order.outstandingNote || "Previous outstanding balance";
+      }
+
+      // Set amountPaid based on status
+      if (paymentStatus === "paid") {
+        invoiceData.amountPaid = totalWithOutstanding;
+      } else if (paymentStatus === "partially_paid") {
+        invoiceData.amountPaid = amountPaid;
+      } else {
+        invoiceData.amountPaid = 0;
+      }
+
+      // Create payment history record if payment was made
+      if (paymentStatus !== "unpaid" && invoiceData.amountPaid > 0) {
+        invoiceData.paymentHistory = [{
+          amount: invoiceData.amountPaid,
+          date: new Date().toISOString(),
+          note: `Initial payment: ${paymentMethod}`,
+          previousStatus: "unpaid",
+          newStatus: paymentStatus
+        }];
+      }
       
       // Add invoice to Firestore
       const docRef = await addDoc(invoicesCollection, invoiceData);
@@ -331,6 +404,53 @@ const InvoiceGenerator = () => {
                       <span>Total Amount:</span>
                       <span>₹{order.total?.toFixed(2) || "0.00"}</span>
                     </div>
+
+                    {order.outstandingAmount && order.outstandingAmount > 0 && (
+                      <div className="mt-4 pt-4 border-t border-amber-200">
+                        <div className="flex items-center mb-2">
+                          <input
+                            type="checkbox"
+                            id="includeOutstanding"
+                            checked={includeOutstanding}
+                            onChange={(e) => setIncludeOutstanding(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 mr-2"
+                          />
+                          <Label htmlFor="includeOutstanding" className="flex items-center cursor-pointer">
+                            <span>Include Outstanding Amount</span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" className="h-6 w-6 p-0 ml-1">
+                                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs text-xs">
+                                    This will add the outstanding amount to the invoice total.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </Label>
+                        </div>
+                        
+                        {includeOutstanding && (
+                          <>
+                            <div className="flex justify-between mt-2 text-red-600">
+                              <span className="flex items-center">
+                                Outstanding Amount:
+                                <span className="text-xs ml-2">({order.outstandingNote || "Previous balance"})</span>
+                              </span>
+                              <span>₹{order.outstandingAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-medium mt-2 pt-2 border-t text-red-600">
+                              <span>Total with Outstanding:</span>
+                              <span>₹{(order.total + order.outstandingAmount).toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -347,7 +467,7 @@ const InvoiceGenerator = () => {
                       <Label htmlFor="status">Payment Status</Label>
                       <Select
                         value={paymentStatus}
-                        onValueChange={(value: "paid" | "unpaid") => setPaymentStatus(value)}
+                        onValueChange={handlePaymentStatusChange}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select payment status" />
@@ -355,6 +475,7 @@ const InvoiceGenerator = () => {
                         <SelectContent>
                           <SelectItem value="paid">Paid</SelectItem>
                           <SelectItem value="unpaid">Unpaid</SelectItem>
+                          <SelectItem value="partially_paid">Partially Paid</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -364,6 +485,7 @@ const InvoiceGenerator = () => {
                       <Select
                         value={paymentMethod}
                         onValueChange={setPaymentMethod}
+                        disabled={paymentStatus === "unpaid"}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select payment method" />
@@ -378,6 +500,27 @@ const InvoiceGenerator = () => {
                     </div>
                   </div>
 
+                  {paymentStatus === "partially_paid" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="amountPaid">Amount Paid</Label>
+                      <div className="flex items-center">
+                        <span className="mr-2">₹</span>
+                        <Input
+                          id="amountPaid"
+                          type="number"
+                          min="0"
+                          max={getTotalWithOutstanding()}
+                          step="0.01"
+                          value={amountPaid}
+                          onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Due: ₹{(getTotalWithOutstanding() - amountPaid).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="paymentDate">Payment Date</Label>
                     <Input
@@ -385,6 +528,7 @@ const InvoiceGenerator = () => {
                       type="date"
                       value={paymentDate}
                       onChange={(e) => setPaymentDate(e.target.value)}
+                      disabled={paymentStatus === "unpaid"}
                     />
                   </div>
 
@@ -395,7 +539,7 @@ const InvoiceGenerator = () => {
                       value={paymentReference}
                       onChange={(e) => setPaymentReference(e.target.value)}
                       placeholder="Reference number or transaction ID"
-                      disabled={paymentStatus !== "paid"}
+                      disabled={paymentStatus === "unpaid"}
                     />
                   </div>
 

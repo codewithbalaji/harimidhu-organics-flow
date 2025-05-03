@@ -4,6 +4,12 @@ import autoTable from "jspdf-autotable";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
+// Extend the Invoice interface to include outstanding amount fields
+interface ExtendedInvoice extends Invoice {
+  outstandingAmount?: number;
+  outstandingNote?: string;
+}
+
 declare module "jspdf" {
   interface jsPDF {
     autoTable: (options: unknown) => jsPDF;
@@ -196,7 +202,7 @@ const addImageToDoc = async (
 };
 
 export const generateInvoicePdf = async (
-  invoice: Invoice,
+  invoice: ExtendedInvoice,
   companyInfo?: Partial<CompanyInfo>
 ) => {
   // If no company info provided, fetch it
@@ -240,6 +246,7 @@ export const generateInvoicePdf = async (
   const primaryColor = [0, 128, 0]; // Green
   const secondaryColor = [100, 100, 100]; // Dark gray
   const lightGrayColor = [240, 240, 240]; // Light gray for backgrounds
+  const warningColor = [210, 80, 0]; // Orange-red for outstanding amounts
 
   // Helper for text formatting
   const formatLongText = (text: string, maxChars = 40) => {
@@ -373,36 +380,41 @@ export const generateInvoicePdf = async (
   doc.text(":", 50, y + 12);
   doc.text(info.paymentTerms || "Immediate", 55, y + 12);
 
+  // Add payment status
+  doc.text("Payment Status", 15, y + 18);
+  doc.text(":", 50, y + 18);
+  doc.text(invoice.paidStatus?.charAt(0).toUpperCase() + invoice.paidStatus?.slice(1).replace(/_/g, ' ') || "Unpaid", 55, y + 18);
+
   // Bill To section
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("Bill To", 15, y + 24);
+  doc.text("Bill To", 15, y + 30);
 
   doc.setFont("helvetica", "normal");
-  doc.text("Non GST Customer", 15, y + 30);
-  doc.text(invoice.customerName, 15, y + 36);
+  doc.text("Non GST Customer", 15, y + 36);
+  doc.text(invoice.customerName, 15, y + 42);
 
   // Handle multi-line addresses
   const addressLines = formatLongText(invoice.deliveryAddress || "", 40);
   addressLines.forEach((line, index) => {
-    doc.text(line, 15, y + 42 + index * 6);
+    doc.text(line, 15, y + 48 + index * 6);
   });
 
   // Ship To section
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("Ship To", 120, y + 24);
+  doc.text("Ship To", 120, y + 30);
 
   doc.setFont("helvetica", "normal");
-  doc.text("Non GST Customer", 120, y + 30);
-  doc.text(invoice.customerName, 120, y + 36);
+  doc.text("Non GST Customer", 120, y + 36);
+  doc.text(invoice.customerName, 120, y + 42);
 
   // Use same address for ship to
   addressLines.forEach((line, index) => {
-    doc.text(line, 120, y + 42 + index * 6);
+    doc.text(line, 120, y + 48 + index * 6);
   });
 
-  y += 60; // Move down for items table
+  y += 70; // Move down for items table (increased for payment status)
 
   // Calculate tax rates
   const taxRate = parseFloat(info.taxRate || "0") / 100;
@@ -440,7 +452,11 @@ export const generateInvoicePdf = async (
     0
   );
   const shippingCost = invoice.shippingCost || 0;
-  const total = subtotal + shippingCost;
+  
+  // Include outstanding amount if present
+  const outstandingAmount = invoice.outstandingAmount || 0;
+  const orderTotal = subtotal + shippingCost;
+  const total = orderTotal + outstandingAmount;
   const totalRounded = Math.round(total);
 
   // Define the table
@@ -543,6 +559,23 @@ export const generateInvoicePdf = async (
     y += 5;
   }
 
+  // Order Total row
+  doc.text("Order Total", totalsX, y);
+  doc.text(formatCurrency(orderTotal), totalsRightX, y, { align: "right" });
+  y += 5;
+
+  // Outstanding amount if applicable
+  if (invoice.outstandingAmount && invoice.outstandingAmount > 0) {
+    doc.setTextColor(warningColor[0], warningColor[1], warningColor[2]);
+    doc.text("Outstanding Amount", totalsX, y);
+    doc.text(formatCurrency(outstandingAmount), totalsRightX, y, { align: "right" });
+    y += 5;
+    
+  
+    
+    doc.setTextColor(0, 0, 0);
+  }
+
   // Total row
   doc.setFont("helvetica", "bold");
   doc.text("Total", totalsX, y);
@@ -553,6 +586,22 @@ export const generateInvoicePdf = async (
   doc.text("Grand Total (Rounded off)", totalsX, y);
   doc.text(`Rs. ${totalRounded}`, totalsRightX, y, { align: "right" });
   y += 5;
+  
+  // Payment information
+  if (invoice.paidStatus === "partially_paid" && invoice.amountPaid) {
+    y += 3;
+    doc.setTextColor(0, 128, 0); // Green for paid amount
+    doc.text("Amount Paid", totalsX, y);
+    doc.text(formatCurrency(invoice.amountPaid), totalsRightX, y, { align: "right" });
+    y += 5;
+    
+    doc.setTextColor(210, 0, 0); // Red for due amount
+    doc.text("Amount Due", totalsX, y);
+    doc.text(formatCurrency(total - (invoice.amountPaid || 0)), totalsRightX, y, { align: "right" });
+    y += 5;
+    
+    doc.setTextColor(0, 0, 0); // Reset color
+  }
 
   // Remove the compact GST Summary Table section
   y += 10; // Space between totals and the next section
@@ -602,37 +651,6 @@ export const generateInvoicePdf = async (
 
   // Payment info
   y += 15;
-  if (invoice.paidStatus) {
-    doc.setFont("helvetica", "bold");
-    doc.text("Payment Status:", 15, y);
-
-    // Payment status - color coded
-    if (invoice.paidStatus === "paid") {
-      doc.setTextColor(0, 128, 0); // Green for paid
-    } else {
-      doc.setTextColor(200, 0, 0); // Red for unpaid
-    }
-    doc.setFont("helvetica", "normal");
-    doc.text(invoice.paidStatus.toUpperCase(), 50, y);
-  }
-
-  // Payment method if available and not empty
-  if (invoice.paymentMethod && invoice.paymentMethod.trim() !== "") {
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "bold");
-    doc.text("Payment Method:", 15, y + 7);
-    doc.setFont("helvetica", "normal");
-    doc.text(invoice.paymentMethod, 50, y + 7);
-  }
-
-  // Payment reference if available and not empty
-  if (invoice.paymentReference && invoice.paymentReference.trim() !== "") {
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "bold");
-    doc.text("Payment Reference:", 15, y + 14);
-    doc.setFont("helvetica", "normal");
-    doc.text(invoice.paymentReference, 50, y + 14);
-  }
 
   // Footer with company contact info
   const pageHeight = doc.internal.pageSize.height;

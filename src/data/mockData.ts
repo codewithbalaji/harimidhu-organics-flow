@@ -220,8 +220,18 @@ export const invoices: Invoice[] = [
     ],
     total: 720,
     paidStatus: "paid",
+    amountPaid: 720,
     dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
     createdAt: Date.now(),
+    paymentHistory: [
+      {
+        amount: 720,
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        note: "Full payment received",
+        previousStatus: "unpaid",
+        newStatus: "paid"
+      }
+    ]
   },
   {
     id: "i2",
@@ -239,9 +249,40 @@ export const invoices: Invoice[] = [
     ],
     total: 240,
     paidStatus: "unpaid",
+    amountPaid: 0,
     dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
     createdAt: Date.now(),
+    paymentHistory: []
   },
+  {
+    id: "i3",
+    orderId: "o3",
+    customerName: "Raj Kumar",
+    customerPhone: "7654321098",
+    deliveryAddress: "789 Nature View, Bangalore",
+    items: [
+      {
+        productId: "p2",
+        name: "Organic Tomatoes",
+        price: 60,
+        quantity: 5,
+      }
+    ],
+    total: 500,
+    paidStatus: "partially_paid",
+    amountPaid: 200,
+    dueDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
+    paymentHistory: [
+      {
+        amount: 200,
+        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        note: "Initial payment",
+        previousStatus: "unpaid",
+        newStatus: "partially_paid"
+      }
+    ]
+  }
 ];
 
 // Mock Dashboard Stats

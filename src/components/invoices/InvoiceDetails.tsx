@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Invoice } from "@/types";
 import { invoicesCollection } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import InvoiceTemplate from "./InvoiceTemplate";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const InvoiceDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -80,6 +81,8 @@ const InvoiceDetails = () => {
     );
   }
 
+  const hasOutstandingAmount = invoice.outstandingAmount && invoice.outstandingAmount > 0;
+
   return (
     <DashboardLayout title="Invoice Details">
       <div className="flex flex-col gap-6">
@@ -99,6 +102,16 @@ const InvoiceDetails = () => {
             Update Status
           </Button>
         </div>
+
+        {hasOutstandingAmount && (
+          <Alert className="bg-amber-50 border-amber-200 text-amber-800">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertDescription>
+              This invoice includes an outstanding amount of ₹{invoice.outstandingAmount.toFixed(2)}
+              {invoice.outstandingNote && `: ${invoice.outstandingNote}`}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <InvoiceTemplate invoice={invoice} />
       </div>

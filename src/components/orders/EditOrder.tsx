@@ -21,12 +21,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Save, Trash2, Search, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Search, Pencil, InfoIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrderItem, Customer, Product, Order } from "@/types";
 import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
 import { getDocs, query, where, orderBy, updateDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 
 const EditOrder = () => {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +49,9 @@ const EditOrder = () => {
   const [editedPrice, setEditedPrice] = useState<number>(0);
   const [status, setStatus] = useState<string>("pending");
   const [shippingCost, setShippingCost] = useState<number>(0);
+  const [outstandingAmount, setOutstandingAmount] = useState<number>(0);
+  const [includeOutstanding, setIncludeOutstanding] = useState<boolean>(true);
+  const [outstandingNote, setOutstandingNote] = useState<string>("");
   
   useEffect(() => {
     if (id) {
@@ -73,6 +78,9 @@ const EditOrder = () => {
         setOriginalItems(data.items ? [...data.items] : []);
         setStatus(data.status || "pending");
         setShippingCost(data.shippingCost || 0);
+        setOutstandingAmount(data.outstandingAmount || 0);
+        setIncludeOutstanding(data.includeOutstanding !== false); // default to true if not set
+        setOutstandingNote(data.outstandingNote || "");
       } else {
         toast.error("Order not found");
         navigate("/orders");
@@ -126,8 +134,8 @@ const EditOrder = () => {
   // Calculate total
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  // Calculate grand total with shipping
-  const grandTotal = total + shippingCost;
+  // Calculate grand total with shipping and outstanding amount
+  const grandTotal = total + shippingCost + (includeOutstanding ? outstandingAmount : 0);
 
   // Format number to display with 2 decimal places
   const formatNumber = (num: number) => {
@@ -277,7 +285,10 @@ const EditOrder = () => {
         status,
         updatedAt: new Date().toISOString(),
         latitude: customerData?.latitude || 0,
-        longitude: customerData?.longitude || 0
+        longitude: customerData?.longitude || 0,
+        outstandingAmount,
+        includeOutstanding,
+        outstandingNote
       };
 
       // Update the order
@@ -531,6 +542,53 @@ const EditOrder = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="rounded-md border p-4 mt-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">Outstanding Amount</h3>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-72">
+                              <p>Add any outstanding or previous balance that the customer needs to pay.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Switch 
+                          id="include-outstanding" 
+                          checked={includeOutstanding}
+                          onCheckedChange={setIncludeOutstanding}
+                        />
+                        <Label htmlFor="include-outstanding">Include in total</Label>
+                      </div>
+
+                      <div className="flex items-center">
+                        <span className="mr-2">₹</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={outstandingAmount}
+                          onChange={(e) => setOutstandingAmount(parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <Input
+                        placeholder="Note about outstanding amount (optional)"
+                        value={outstandingNote}
+                        onChange={(e) => setOutstandingNote(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -712,6 +770,15 @@ const EditOrder = () => {
                           />
                         </div>
                       </div>
+
+                      {outstandingAmount > 0 && (
+                        <div className="flex justify-between w-full max-w-xs mt-2">
+                          <span className="text-sm flex-1">Outstanding Amount:</span>
+                          <span className={`${includeOutstanding ? 'text-amber-600' : 'text-muted-foreground line-through'}`}>
+                            ₹{formatNumber(outstandingAmount)}
+                          </span>
+                        </div>
+                      )}
                       
                       <div className="text-lg font-semibold flex justify-between w-full max-w-xs mt-2 pt-2 border-t">
                         <span>Grand Total:</span>

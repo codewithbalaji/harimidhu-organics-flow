@@ -21,11 +21,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Save, Trash2, Search, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Search, Pencil, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrderItem, Customer, Product } from "@/types";
 import { customersCollection, productsCollection, ordersCollection } from "@/firebase";
 import { getDocs, query, where, orderBy, addDoc, updateDoc, doc, getDoc } from "firebase/firestore";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const AddOrder = () => {
   const navigate = useNavigate();
@@ -42,6 +43,8 @@ const AddOrder = () => {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editedPrice, setEditedPrice] = useState<number>(0);
   const [shippingCost, setShippingCost] = useState<number>(0);
+  const [outstandingAmount, setOutstandingAmount] = useState<number>(0);
+  const [outstandingNote, setOutstandingNote] = useState<string>("");
   
   useEffect(() => {
     fetchCustomersAndProducts();
@@ -238,6 +241,8 @@ const AddOrder = () => {
         })),
         total: grandTotal,
         shippingCost,
+        outstandingAmount: outstandingAmount > 0 ? outstandingAmount : undefined,
+        outstandingNote: outstandingAmount > 0 ? outstandingNote : undefined,
         status: "pending",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -546,10 +551,63 @@ const AddOrder = () => {
                         </div>
                       </div>
                       
+                      <div className="flex w-full max-w-xs mt-2">
+                        <div className="w-full flex items-center">
+                          <div className="text-sm flex-1 flex items-center">
+                            <span>Outstanding Amount:</span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" className="h-6 w-6 p-0 ml-1">
+                                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs text-xs">
+                                    Enter any previous outstanding amount owed by the customer.
+                                    This will be included in the invoice.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                          <Input
+                            id="outstandingAmount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={outstandingAmount}
+                            onChange={(e) => setOutstandingAmount(parseFloat(e.target.value) || 0)}
+                            className="w-28 ml-4"
+                          />
+                        </div>
+                      </div>
+                      
+                      {outstandingAmount > 0 && (
+                        <div className="flex w-full max-w-xs mt-2">
+                          <div className="w-full">
+                            <Input
+                              id="outstandingNote"
+                              placeholder="Note about outstanding amount"
+                              value={outstandingNote}
+                              onChange={(e) => setOutstandingNote(e.target.value)}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="text-lg font-semibold flex justify-between w-full max-w-xs mt-2 pt-2 border-t">
                         <span>Grand Total:</span>
                         <span>₹{formatNumber(grandTotal)}</span>
                       </div>
+                      
+                      {outstandingAmount > 0 && (
+                        <div className="text-lg font-semibold flex justify-between w-full max-w-xs mt-2 pt-2 text-red-600">
+                          <span>Total with Outstanding:</span>
+                          <span>₹{formatNumber(grandTotal + outstandingAmount)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

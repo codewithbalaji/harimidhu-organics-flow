@@ -50,6 +50,18 @@ export interface Order {
   customerPhone: string;
   latitude: number;
   longitude: number;
+  shippingCost?: number;
+  outstandingAmount?: number;
+  includeOutstanding?: boolean;
+  outstandingNote?: string;
+}
+
+export interface PaymentRecord {
+  amount: number;
+  date: string;
+  note: string;
+  previousStatus: string;
+  newStatus: string;
 }
 
 export interface Invoice {
@@ -60,7 +72,7 @@ export interface Invoice {
   deliveryAddress: string;
   items: OrderItem[];
   total: number;
-  paidStatus: "paid" | "unpaid";
+  paidStatus: "paid" | "unpaid" | "partially_paid";
   paymentMethod?: string;
   paymentDate?: number;
   paymentReference?: string;
@@ -69,6 +81,11 @@ export interface Invoice {
   createdAt: number;
   updatedAt?: number;
   shippingCost?: number;
+  amountPaid?: number;
+  paymentHistory?: PaymentRecord[];
+  outstandingAmount?: number;
+  includeOutstanding?: boolean;
+  outstandingNote?: string;
 }
 
 export interface DashboardStats {

@@ -24,16 +24,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Download, Eye, FileText, MoreHorizontal } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Search, Download, Eye, FileText, MoreHorizontal, AlertCircle, Clock, HistoryIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Invoice } from "@/types";
+import { Invoice, PaymentRecord } from "@/types";
 import { toast } from "sonner";
 import { invoicesCollection } from "@/firebase";
 import { getDocs, query, orderBy, where, doc, deleteDoc } from "firebase/firestore";
 import { generateInvoicePdf } from "@/utils/pdfUtils";
 import { db } from "@/firebase";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Invoices = () => {
   const navigate = useNavigate();
@@ -43,6 +53,8 @@ const Invoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     fetchInvoices();
@@ -154,6 +166,24 @@ const Invoices = () => {
     }
   };
 
+  const handleViewPaymentHistory = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsPaymentHistoryOpen(true);
+  };
+
+  // Calculate total for invoice including outstanding amount
+  const calculateTotal = (invoice: Invoice) => {
+    const outstandingAmount = invoice.outstandingAmount || 0;
+    return invoice.total + outstandingAmount;
+  };
+
+  // Calculate due amount for an invoice
+  const calculateDueAmount = (invoice: Invoice) => {
+    const amountPaid = invoice.amountPaid || 0;
+    const totalWithOutstanding = calculateTotal(invoice);
+    return totalWithOutstanding - amountPaid;
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout title="Invoices">
@@ -212,92 +242,128 @@ const Invoices = () => {
                       <TableHead>Order ID</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Due Amount</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.id}</TableCell>
-                        <TableCell>{invoice.orderId}</TableCell>
-                        <TableCell>{invoice.customerName}</TableCell>
-                        <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>
-                        <TableCell>₹{invoice.total.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                            invoice.paidStatus === "paid" 
-                              ? "bg-green-100 text-green-800" 
-                              : invoice.paidStatus === "partially_paid"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800"
-                          )}>
-                            {invoice.paidStatus === "paid" 
-                              ? "Paid" 
-                              : invoice.paidStatus === "partially_paid" 
-                                ? "Partially Paid" 
-                                : "Unpaid"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                className="flex items-center gap-2 cursor-pointer"
-                                onClick={() => handleViewInvoice(invoice.id)}
-                              >
-                                <Eye className="h-4 w-4" />
-                                View Invoice
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="flex items-center gap-2 cursor-pointer"
-                                onClick={() => handleDownloadInvoice(invoice)}
-                              >
-                                <Download className="h-4 w-4" />
-                                Download PDF
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="flex items-center gap-2 cursor-pointer"
-                                onClick={() => navigate(`/invoices/status/${invoice.id}`)}
-                              >
-                                <FileText className="h-4 w-4" />
-                                Update Status
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="flex items-center gap-2 cursor-pointer text-destructive"
-                                onClick={() => handleDeleteInvoice(invoice.id)}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="24"
-                                  height="24"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="h-4 w-4"
+                    {filteredInvoices.map((invoice) => {
+                      const dueAmount = calculateDueAmount(invoice);
+                      
+                      return (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-medium">{invoice.id}</TableCell>
+                          <TableCell>{invoice.orderId}</TableCell>
+                          <TableCell>{invoice.customerName}</TableCell>
+                          <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>
+                          <TableCell>₹{invoice.total.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                              invoice.paidStatus === "paid" 
+                                ? "bg-green-100 text-green-800" 
+                                : invoice.paidStatus === "partially_paid"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-red-100 text-red-800"
+                            )}>
+                              {invoice.paidStatus === "paid" 
+                                ? "Paid" 
+                                : invoice.paidStatus === "partially_paid" 
+                                  ? "Partially Paid" 
+                                  : "Unpaid"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {invoice.paidStatus !== "paid" && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-medium text-red-600">₹{dueAmount.toFixed(2)}</span>
+                                      {invoice.paidStatus === "partially_paid" && (
+                                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                                      )}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {invoice.paidStatus === "partially_paid" 
+                                      ? `Paid: ₹${(invoice.amountPaid || 0).toFixed(2)} of ₹${invoice.total.toFixed(2)}`
+                                      : `Total due: ₹${invoice.total.toFixed(2)}`}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {invoice.paidStatus === "paid" && (
+                              <span className="text-green-600">Paid</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Open menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem 
+                                  className="flex items-center gap-2 cursor-pointer"
+                                  onClick={() => handleViewInvoice(invoice.id)}
                                 >
-                                  <path d="M3 6h18"></path>
-                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                </svg>
-                                Delete Invoice
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                                  <Eye className="h-4 w-4" />
+                                  View Invoice
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="flex items-center gap-2 cursor-pointer"
+                                  onClick={() => handleDownloadInvoice(invoice)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Download PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="flex items-center gap-2 cursor-pointer"
+                                  onClick={() => navigate(`/invoices/status/${invoice.id}`)}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  Update Status
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="flex items-center gap-2 cursor-pointer"
+                                  onClick={() => handleViewPaymentHistory(invoice)}
+                                >
+                                  <HistoryIcon className="h-4 w-4" />
+                                  Payment History
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="flex items-center gap-2 cursor-pointer text-destructive"
+                                  onClick={() => handleDeleteInvoice(invoice.id)}
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-4 w-4"
+                                  >
+                                    <path d="M3 6h18"></path>
+                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                  </svg>
+                                  Delete Invoice
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -310,6 +376,82 @@ const Invoices = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Payment History Dialog */}
+      <Dialog open={isPaymentHistoryOpen} onOpenChange={setIsPaymentHistoryOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Payment History</DialogTitle>
+            <DialogDescription>
+              {selectedInvoice && `Invoice #${selectedInvoice.id} - ${selectedInvoice.customerName}`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="pt-2">
+            {selectedInvoice && (
+              <div>
+                <div className="flex justify-between text-sm mb-4">
+                  <div>
+                    <span className="text-muted-foreground">Total Amount:</span>
+                    <span className="font-medium ml-2">₹{selectedInvoice.total.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Current Status:</span>
+                    <span className={cn(
+                      "ml-2 font-medium capitalize",
+                      selectedInvoice.paidStatus === "paid" 
+                        ? "text-green-600" 
+                        : selectedInvoice.paidStatus === "partially_paid"
+                          ? "text-amber-600"
+                          : "text-red-600"
+                    )}>
+                      {selectedInvoice.paidStatus}
+                    </span>
+                  </div>
+                </div>
+
+                <ScrollArea className="h-[300px] rounded-md border p-2">
+                  {selectedInvoice.paymentHistory && selectedInvoice.paymentHistory.length > 0 ? (
+                    <div className="space-y-4">
+                      {selectedInvoice.paymentHistory.map((payment: PaymentRecord, index) => (
+                        <div key={index} className="border rounded-md p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                {format(new Date(payment.date), 'dd MMM yyyy - HH:mm')}
+                              </span>
+                            </div>
+                            <span className={payment.amount > 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                              {payment.amount > 0 ? `+₹${payment.amount.toFixed(2)}` : `-₹${Math.abs(payment.amount).toFixed(2)}`}
+                            </span>
+                          </div>
+                          <p className="text-sm mb-1">
+                            {payment.note}
+                          </p>
+                          <div className="text-xs text-muted-foreground">
+                            Status changed from <span className="capitalize">{payment.previousStatus}</span> to <span className="capitalize">{payment.newStatus}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted-foreground">No payment history available</p>
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-4 flex justify-end">
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

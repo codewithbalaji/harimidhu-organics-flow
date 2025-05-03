@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Printer, FileText, TruckIcon, PencilIcon } from "lucide-react";
+import { ArrowLeft, Printer, FileText, TruckIcon, PencilIcon, AlertTriangle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,9 @@ const OrderDetails = () => {
           total: data.total || 0,
           customerName: data.customerName || "Customer",
           customerPhone: data.customerPhone || "Not specified",
-          deliveryAddress: data.deliveryAddress || "Not specified"
+          deliveryAddress: data.deliveryAddress || "Not specified",
+          outstandingAmount: data.outstandingAmount || 0,
+          includeOutstanding: data.includeOutstanding !== false // default to true if not set
         } as Order;
         
         console.log("Processed order data:", orderData); // Debug log
@@ -111,10 +113,12 @@ const OrderDetails = () => {
 
   const formattedDate = new Date(order.createdAt).toLocaleDateString();
 
-  // Calculate subtotal from items, excluding shipping cost
+  // Calculate subtotal from items, excluding shipping cost and outstanding amount
   const calculateSubtotal = () => {
     return order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
+
+  const hasOutstandingAmount = order.outstandingAmount && order.outstandingAmount > 0;
 
   return (
     <DashboardLayout title="Order Details">
@@ -166,10 +170,32 @@ const OrderDetails = () => {
                   <span>₹{order.shippingCost.toFixed(2)}</span>
                 </div>
               )}
+              {hasOutstandingAmount && (
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">Outstanding Amount</span>
+                    {order.includeOutstanding && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    )}
+                  </div>
+                  <span className={order.includeOutstanding ? "text-amber-600 font-medium" : "text-muted-foreground"}>
+                    ₹{order.outstandingAmount.toFixed(2)}
+                    {!order.includeOutstanding && <span className="text-xs ml-1">(not included)</span>}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Amount</span>
                 <span className="font-medium">₹{order.total?.toFixed(2) || "0.00"}</span>
               </div>
+              
+              {hasOutstandingAmount && order.outstandingNote && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                  <p className="text-xs text-amber-800">
+                    <span className="font-medium">Note:</span> {order.outstandingNote}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

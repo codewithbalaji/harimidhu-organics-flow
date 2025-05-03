@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreHorizontal, FileText, Eye, TruckIcon, PencilIcon } from "lucide-react";
+import { Plus, Search, MoreHorizontal, FileText, Eye, TruckIcon, PencilIcon, CheckIcon, AlertCircle, AlertTriangle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Order } from "@/types";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { ordersCollection, invoicesCollection } from "@/firebase";
 import { getDocs, query, where, orderBy, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/firebase";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -40,11 +42,13 @@ const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [orderInvoiceMap, setOrderInvoiceMap] = useState<Record<string, string>>({});
 
   const statuses = ["all", "pending", "processing", "out-for-delivery", "delivered"];
 
   useEffect(() => {
     fetchOrders();
+    fetchInvoiceStatus();
   }, []);
 
   const fetchOrders = async () => {
@@ -63,6 +67,25 @@ const Orders = () => {
       toast.error("Failed to fetch orders");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchInvoiceStatus = async () => {
+    try {
+      const invoicesQuery = query(invoicesCollection);
+      const querySnapshot = await getDocs(invoicesQuery);
+      
+      const invoiceMap: Record<string, string> = {};
+      querySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.orderId) {
+          invoiceMap[data.orderId] = doc.id;
+        }
+      });
+      
+      setOrderInvoiceMap(invoiceMap);
+    } catch (error) {
+      console.error("Error fetching invoice statuses:", error);
     }
   };
 
@@ -143,6 +166,10 @@ const Orders = () => {
     }
   };
 
+  const viewInvoice = (invoiceId: string) => {
+    navigate(`/invoices/${invoiceId}`);
+  };
+
   // Format number to display with 2 decimal places
   const formatNumber = (num: number) => {
     return num.toFixed(2);
@@ -154,6 +181,14 @@ const Orders = () => {
 
   const hasShippingCost = (order: Order) => {
     return order.shippingCost !== undefined && order.shippingCost > 0;
+  };
+
+  const hasOutstandingAmount = (order: Order) => {
+    return order.outstandingAmount && order.outstandingAmount > 0 && order.includeOutstanding !== false;
+  };
+
+  const hasInvoice = (orderId: string) => {
+    return !!orderInvoiceMap[orderId];
   };
 
   if (isLoading) {
@@ -220,6 +255,7 @@ const Orders = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Invoice</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -228,16 +264,51 @@ const Orders = () => {
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
                         {order.id}
-                        {hasCustomPricing(order) && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-sm">
-                            Custom
-                          </span>
-                        )}
-                        {hasShippingCost(order) && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded-sm">
-                            + Shipping
-                          </span>
-                        )}
+                        <div className="flex gap-1 mt-1">
+                          {hasCustomPricing(order) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-sm">
+                                    Custom
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Custom pricing applied</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {hasShippingCost(order) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded-sm">
+                                    Shipping
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Includes shipping cost</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {hasOutstandingAmount(order) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-sm flex items-center">
+                                    <AlertTriangle className="h-3 w-3 mr-0.5" />
+                                    Outstanding
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Includes outstanding amount of ₹{order.outstandingAmount?.toFixed(2)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{order.customerName || "Customer"}</TableCell>
                       <TableCell>{new Date(order.createdAt).toLocaleDateString('en-GB', {
@@ -256,6 +327,45 @@ const Orders = () => {
                         )}>
                           {order.status?.replace(/-/g, " ") || "pending"}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {hasInvoice(order.id) ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant="outline" 
+                                  className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200 cursor-pointer"
+                                  onClick={() => viewInvoice(orderInvoiceMap[order.id])}
+                                >
+                                  <CheckIcon className="h-3 w-3 mr-1" />
+                                  Generated
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Click to view invoice</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant="outline" 
+                                  className="bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200 cursor-pointer"
+                                  onClick={() => handleGenerateInvoice(order)}
+                                >
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Pending
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Click to generate invoice</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -289,10 +399,13 @@ const Orders = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="flex items-center gap-2 cursor-pointer"
-                              onClick={() => handleGenerateInvoice(order)}
+                              onClick={() => hasInvoice(order.id) 
+                                ? viewInvoice(orderInvoiceMap[order.id]) 
+                                : handleGenerateInvoice(order)
+                              }
                             >
                               <FileText className="h-4 w-4" />
-                              Generate Invoice
+                              {hasInvoice(order.id) ? "View Invoice" : "Generate Invoice"}
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="flex items-center gap-2 cursor-pointer text-destructive"

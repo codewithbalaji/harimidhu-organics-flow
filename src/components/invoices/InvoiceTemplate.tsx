@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Plus, Download } from "lucide-react"
+import { Plus, Download, AlertTriangle } from "lucide-react"
 import { Invoice } from "@/types/index"
 import { Button } from "@/components/ui/button"
 import { generateInvoicePdf } from "@/utils/pdfUtils"
@@ -87,7 +87,15 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
   const sgstRate = totalTaxRate / 2
   const cgstAmount = subtotal * cgstRate
   const sgstAmount = subtotal * sgstRate
-  const total = subtotal + cgstAmount + sgstAmount
+
+  // Check if we have outstanding amount
+  const hasOutstandingAmount = invoice.outstandingAmount && invoice.outstandingAmount > 0 && invoice.includeOutstanding !== false
+  const outstandingAmount = hasOutstandingAmount ? invoice.outstandingAmount : 0
+  
+  // Calculate totals including shipping and outstanding amount
+  const shippingCost = invoice.shippingCost || 0
+  const orderTotal = subtotal + cgstAmount + sgstAmount + shippingCost
+  const total = orderTotal + outstandingAmount
   const totalRounded = Math.round(total)
 
   // Convert to Indian number format
@@ -204,6 +212,10 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
   const invoiceDate = formatDate(invoice.createdAt)
   const addressLines = formatLongText(invoice.deliveryAddress || '')
 
+  // Calculate due amount
+  const amountPaid = invoice.amountPaid || 0
+  const dueAmount = total - amountPaid
+
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-sm">
       <div className="border-b pb-4 mb-4">
@@ -257,6 +269,23 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
             <p className="text-sm mb-1"><span className="font-medium">Invoice No:</span> {invoiceNumber}</p>
             <p className="text-sm mb-1"><span className="font-medium">Invoice Date:</span> {invoiceDate}</p>
             <p className="text-sm mb-1"><span className="font-medium">Payment Terms:</span> {companyInfo.paymentTerms || 'Immediate'}</p>
+            <p className="text-sm mb-1">
+              <span className="font-medium">Payment Status:</span>{" "}
+              <span className={
+                invoice.paidStatus === "paid" ? "text-green-600" : 
+                invoice.paidStatus === "partially_paid" ? "text-amber-600" : 
+                "text-red-600"
+              }>
+                {invoice.paidStatus === "paid" ? "Paid" : 
+                 invoice.paidStatus === "partially_paid" ? "Partially Paid" : 
+                 "Unpaid"}
+              </span>
+            </p>
+            {invoice.paidStatus === "partially_paid" && (
+              <p className="text-sm text-amber-600 mb-1">
+                <span className="font-medium">Amount Paid:</span> ₹{formatCurrency(amountPaid)}
+              </p>
+            )}
           </div>
           
           <div className="border rounded p-3">
@@ -276,6 +305,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
             {addressLines.map((line, index) => (
               <p key={index} className="text-sm text-gray-600">{line}</p>
             ))}
+            <p className="text-sm text-gray-600">{invoice.customerPhone}</p>
           </div>
         </div>
       </div>
@@ -350,6 +380,8 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
                 : (companyInfo.notes || "Thank you for your business.")}
             </p>
           </div>
+
+         
         </div>
         
         <div>
@@ -366,29 +398,43 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
               <span className="text-sm">SGST</span>
               <span className="text-sm">{formatCurrency(sgstAmount)}</span>
             </div>
+            {invoice.shippingCost && invoice.shippingCost > 0 && (
+              <div className="flex justify-between py-1">
+                <span className="text-sm">Shipping Cost</span>
+                <span className="text-sm">{formatCurrency(shippingCost)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-1">
-              <span className="text-sm font-medium">Total</span>
-              <span className="text-sm font-medium">{formatCurrency(total)}</span>
+              <span className="text-sm font-medium">Order Total</span>
+              <span className="text-sm font-medium">{formatCurrency(orderTotal)}</span>
             </div>
+            
+            {hasOutstandingAmount && (
+              <div className="flex justify-between py-1 text-amber-600">
+                <span className="text-sm font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Outstanding Amount
+                </span>
+                <span className="text-sm font-medium">{formatCurrency(outstandingAmount)}</span>
+              </div>
+            )}
+            
             <div className="flex justify-between py-1 border-t border-gray-200 mt-2">
               <span className="text-sm font-bold">Grand Total (Rounded off)</span>
               <span className="text-sm font-bold">₹ {totalRounded}</span>
             </div>
+
+            {invoice.paidStatus !== "paid" && (
+              <div className="flex justify-between py-1 mt-2 text-red-600 border-t border-red-100">
+                <span className="text-sm font-medium">Due Amount</span>
+                <span className="text-sm font-medium">₹ {formatCurrency(dueAmount)}</span>
+              </div>
+            )}
           </div>
           
-          <div className="mt-8 pt-8 border-t">
+          <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between">
-              <div>
-                <div className="space-y-2">
-                  <p className="text-sm"><span className="font-medium">Payment Status:</span> <span className={invoice.paidStatus === 'paid' ? 'text-green-700' : 'text-red-700'}>{invoice.paidStatus.toUpperCase()}</span></p>
-                  {invoice.paymentMethod && invoice.paymentMethod.trim() !== "" && (
-                    <p className="text-sm"><span className="font-medium">Payment Method:</span> {invoice.paymentMethod}</p>
-                  )}
-                  {invoice.paymentReference && invoice.paymentReference.trim() !== "" && (
-                    <p className="text-sm"><span className="font-medium">Payment Reference:</span> {invoice.paymentReference}</p>
-                  )}
-                </div>
-              </div>
+              <div></div>
               <div className="text-right">
                 {companyInfo.signature ? (
                   <div className="flex flex-col items-center">

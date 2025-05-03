@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { format } from 'date-fns'
 import { Separator } from '@/components/ui/separator'
+import { formatInvoiceNumber } from './InvoiceGenerator'
 
 function UpdateInvoiceStatus() {
   const { id } = useParams()
@@ -192,7 +193,7 @@ function UpdateInvoiceStatus() {
                   <h3 className="text-sm font-medium text-muted-foreground mb-2">
                     Invoice ID
                   </h3>
-                  <p>{invoice.id}</p>
+                  <p>{formatInvoiceNumber(invoice.id, invoice.createdAt)}</p>
                 </div>
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">

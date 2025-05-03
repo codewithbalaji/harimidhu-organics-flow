@@ -19,6 +19,7 @@ import { invoicesCollection } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { formatInvoiceNumber } from "./InvoiceGenerator";
 
 const InvoiceStatus = () => {
   const { id } = useParams<{ id: string }>();
@@ -161,7 +162,7 @@ const InvoiceStatus = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Invoice ID</p>
-                <p className="font-medium">{invoice.id}</p>
+                <p className="font-medium">{formatInvoiceNumber(invoice.id, invoice.createdAt)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Invoice Date</p>

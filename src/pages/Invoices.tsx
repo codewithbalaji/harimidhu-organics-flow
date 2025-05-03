@@ -44,6 +44,7 @@ import { generateInvoicePdf } from "@/utils/pdfUtils";
 import { db } from "@/firebase";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatInvoiceNumber } from "@/components/invoices/InvoiceGenerator";
 
 const Invoices = () => {
   const navigate = useNavigate();
@@ -254,7 +255,7 @@ const Invoices = () => {
                       
                       return (
                       <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.id}</TableCell>
+                        <TableCell className="font-medium">{formatInvoiceNumber(invoice.id, invoice.createdAt)}</TableCell>
                         <TableCell>{invoice.orderId}</TableCell>
                         <TableCell>{invoice.customerName}</TableCell>
                         <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>
@@ -383,7 +384,7 @@ const Invoices = () => {
           <DialogHeader>
             <DialogTitle>Payment History</DialogTitle>
             <DialogDescription>
-              {selectedInvoice && `Invoice #${selectedInvoice.id} - ${selectedInvoice.customerName}`}
+              {selectedInvoice && `Invoice #${formatInvoiceNumber(selectedInvoice.id, selectedInvoice.createdAt)} - ${selectedInvoice.customerName}`}
             </DialogDescription>
           </DialogHeader>
           

@@ -11,6 +11,7 @@ import InvoiceTemplate from "./InvoiceTemplate";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatInvoiceNumber } from "./InvoiceGenerator";
 
 const InvoiceDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -98,7 +99,7 @@ const InvoiceDetails = () => {
               </Button>
             </Link>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              Invoice #{invoice.id}
+              Invoice #{formatInvoiceNumber(invoice.id, invoice.createdAt)}
               {invoice.paidStatus === "paid" && (
                 <TooltipProvider>
                   <Tooltip>

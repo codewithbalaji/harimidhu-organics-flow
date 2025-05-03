@@ -22,6 +22,22 @@ import { doc, getDoc, addDoc } from "firebase/firestore";
 import { generateInvoicePdf } from "@/utils/pdfUtils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// Helper function to format invoice ID in the format 0001/2025-26
+export const formatInvoiceNumber = (id: string, createdAt: number | string | Date) => {
+  // Extract first 4 characters of ID or pad with zeros
+  const invoiceNum = id.slice(0, 4).padStart(4, '0')
+  
+  // Get financial year in format YYYY-YY
+  const date = new Date(createdAt)
+  const currentYear = date.getFullYear()
+  const nextYear = currentYear + 1
+  
+  // Format as financial year YYYY-YY
+  const financialYear = `${currentYear}-${nextYear.toString().slice(-2)}`
+  
+  return `${invoiceNum}/${financialYear}`
+}
+
 // Extended Order type to include properties needed for Invoice
 interface ExtendedOrder extends Order {
   customerPhone?: string;

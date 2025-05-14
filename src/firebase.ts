@@ -28,6 +28,7 @@ const productsCollection = collection(db, "products");
 const ordersCollection = collection(db, "orders");
 const invoicesCollection = collection(db, "invoices");
 const companySettingsCollection = collection(db, "companySettings");
+const invoiceCounterCollection = collection(db, "invoiceCounter");
 
 // Cloudinary configuration
 const cloudinaryConfig = {
@@ -44,6 +45,7 @@ export {
   ordersCollection,
   invoicesCollection,
   companySettingsCollection,
+  invoiceCounterCollection,
   cloudinaryConfig
 };
 export default app;

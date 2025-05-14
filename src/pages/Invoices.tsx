@@ -255,7 +255,7 @@ const Invoices = () => {
                       
                       return (
                       <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{formatInvoiceNumber(invoice.id, invoice.createdAt)}</TableCell>
+                        <TableCell className="font-medium">{formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt)}</TableCell>
                         <TableCell>{invoice.orderId}</TableCell>
                         <TableCell>{invoice.customerName}</TableCell>
                         <TableCell>{format(new Date(invoice.createdAt), "dd MMM yyyy")}</TableCell>

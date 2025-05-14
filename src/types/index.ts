@@ -69,6 +69,7 @@ export interface PaymentRecord {
 export interface Invoice {
   id: string;
   orderId: string;
+  invoiceNumber: string;
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;

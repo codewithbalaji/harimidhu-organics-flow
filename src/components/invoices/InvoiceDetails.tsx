@@ -99,7 +99,7 @@ const InvoiceDetails = () => {
               </Button>
             </Link>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              Invoice #{formatInvoiceNumber(invoice.id, invoice.createdAt)}
+              Invoice #{formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt)}
               {invoice.paidStatus === "paid" && (
                 <TooltipProvider>
                   <Tooltip>

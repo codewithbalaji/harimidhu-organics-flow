@@ -17,16 +17,13 @@ import { ArrowLeft, Save, FileText, Download, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Order, Invoice } from "@/types";
 import { Invoice as IndexInvoice } from "@/types/index";
-import { ordersCollection, invoicesCollection, db } from "@/firebase";
-import { doc, getDoc, addDoc } from "firebase/firestore";
+import { ordersCollection, invoicesCollection, invoiceCounterCollection, db } from "@/firebase";
+import { doc, getDoc, addDoc, runTransaction } from "firebase/firestore";
 import { generateInvoicePdf } from "@/utils/pdfUtils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Helper function to format invoice ID in the format 0001/2025-26
-export const formatInvoiceNumber = (id: string, createdAt: number | string | Date) => {
-  // Extract first 4 characters of ID or pad with zeros
-  const invoiceNum = id.slice(0, 4).padStart(4, '0')
-  
+export const formatInvoiceNumber = (invoiceNumber: string, createdAt: number | string | Date) => {
   // Get financial year in format YYYY-YY
   const date = new Date(createdAt)
   const currentYear = date.getFullYear()
@@ -35,7 +32,7 @@ export const formatInvoiceNumber = (id: string, createdAt: number | string | Dat
   // Format as financial year YYYY-YY
   const financialYear = `${currentYear}-${nextYear.toString().slice(-2)}`
   
-  return `${invoiceNum}/${financialYear}`
+  return `${invoiceNumber}/${financialYear}`
 }
 
 // Extended Order type to include properties needed for Invoice
@@ -173,10 +170,25 @@ const InvoiceGenerator = () => {
           return;
         }
       }
+
+      // Get the next invoice number using a transaction
+      const counterRef = doc(invoiceCounterCollection, 'current');
+      const invoiceNumber = await runTransaction(db, async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        let nextNumber = 1;
+        
+        if (counterDoc.exists()) {
+          nextNumber = counterDoc.data().number + 1;
+        }
+        
+        transaction.set(counterRef, { number: nextNumber });
+        return nextNumber.toString().padStart(4, '0');
+      });
       
       // Create invoice data
       const invoiceData: Record<string, unknown> = {
         orderId: order.id,
+        invoiceNumber,
         customerName: order.customerName,
         customerPhone: order.customerPhone || "",
         deliveryAddress: order.deliveryAddress || "",
@@ -200,18 +212,20 @@ const InvoiceGenerator = () => {
       }
 
       // Set amountPaid based on status
+      let amountPaidValue: number;
       if (paymentStatus === "paid") {
-        invoiceData.amountPaid = totalWithOutstanding;
+        amountPaidValue = totalWithOutstanding;
       } else if (paymentStatus === "partially_paid") {
-        invoiceData.amountPaid = amountPaid;
+        amountPaidValue = amountPaid;
       } else {
-        invoiceData.amountPaid = 0;
+        amountPaidValue = 0;
       }
+      invoiceData.amountPaid = amountPaidValue;
 
       // Create payment history record if payment was made
-      if (paymentStatus !== "unpaid" && invoiceData.amountPaid > 0) {
+      if (paymentStatus !== "unpaid" && amountPaidValue > 0) {
         invoiceData.paymentHistory = [{
-          amount: invoiceData.amountPaid,
+          amount: amountPaidValue,
           date: new Date().toISOString(),
           note: `Initial payment: ${paymentMethod}`,
           previousStatus: "unpaid",

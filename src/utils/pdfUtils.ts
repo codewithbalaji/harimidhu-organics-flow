@@ -203,10 +203,7 @@ const addImageToDoc = async (
 };
 
 // Helper function to format invoice number in format 0001/2025-26
-const formatInvoiceNumber = (id: string, createdAt: number) => {
-  // Extract first 4 characters of ID or pad with zeros
-  const invoiceNum = id.slice(0, 4).padStart(4, '0');
-  
+const formatInvoiceNumber = (invoiceNumber: string, createdAt: number) => {
   // Get financial year in format YYYY-YY
   const date = new Date(createdAt);
   const currentYear = date.getFullYear();
@@ -215,7 +212,7 @@ const formatInvoiceNumber = (id: string, createdAt: number) => {
   // Format as financial year YYYY-YY
   const financialYear = `${currentYear}-${nextYear.toString().slice(-2)}`;
   
-  return `${invoiceNum}/${financialYear}`;
+  return `${invoiceNumber}/${financialYear}`;
 };
 
 export const generateInvoicePdf = async (
@@ -253,7 +250,7 @@ export const generateInvoicePdf = async (
 
   // Set document properties
   doc.setProperties({
-    title: `Tax Invoice-${formatInvoiceNumber(invoice.id, invoice.createdAt)}`,
+    title: `Tax Invoice-${formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt)}`,
     subject: `Invoice for ${invoice.customerName}`,
     author: info.name,
     creator: info.name,
@@ -307,7 +304,7 @@ export const generateInvoicePdf = async (
   };
 
   // Generate invoice number
-  const invoiceNumber = formatInvoiceNumber(invoice.id, invoice.createdAt);
+  const invoiceNumber = formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt);
 
   // Document starts at y = 10mm
   let y = 10;

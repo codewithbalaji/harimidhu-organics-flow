@@ -188,10 +188,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
   }
 
   // Generate invoice number in format 0001/2025-26
-  const formatInvoiceNumber = (id: string, createdAt: number) => {
-    // Extract first 4 characters of ID or pad with zeros
-    const invoiceNum = id.slice(0, 4).padStart(4, '0')
-    
+  const formatInvoiceNumber = (invoiceNumber: string, createdAt: number) => {
     // Get financial year in format YYYY-YY
     const date = new Date(createdAt)
     const currentYear = date.getFullYear()
@@ -200,7 +197,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
     // Format as financial year YYYY-YY
     const financialYear = `${currentYear}-${nextYear.toString().slice(-2)}`
     
-    return `${invoiceNum}/${financialYear}`
+    return `${invoiceNumber}/${financialYear}`
   }
 
   // Split long text to max 30 words per line
@@ -224,7 +221,7 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
     return lines;
   }
 
-  const invoiceNumber = formatInvoiceNumber(invoice.id, invoice.createdAt)
+  const invoiceNumber = formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt)
   const invoiceDate = formatDate(invoice.createdAt)
   const addressLines = formatLongText(invoice.deliveryAddress || '')
 

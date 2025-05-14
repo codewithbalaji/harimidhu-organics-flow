@@ -1,4 +1,3 @@
-
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,7 @@ import { Link } from "react-router-dom";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 
 const Dashboard = () => {
-  const { stats, isLoading, salesData, recentOrders, lowStockProducts } = useDashboardStats();
+  const { stats, isLoading, salesData, recentOrders } = useDashboardStats();
 
   // If dashboard is loading, show loading indicator
   if (isLoading) {
@@ -47,7 +46,7 @@ const Dashboard = () => {
             title="Total Sales"
             value={`₹${stats.totalSales}`}
             icon={<TrendingUp className="h-6 w-6" />}
-            description="Last 30 days"
+            description="Last 30 days (excluding outstanding)"
             className="bg-blue-50 border-blue-100"
           />
           <StatsCard
@@ -58,18 +57,18 @@ const Dashboard = () => {
             className="bg-green-50 border-green-100"
           />
           <StatsCard
-            title="Total Customers"
-            value={stats.totalCustomers.toString()}
-            icon={<Users className="h-6 w-6" />}
-            description="Last 30 days"
-            className="bg-purple-50 border-purple-100"
+            title="Outstanding Amount"
+            value={`₹${stats.outstandingAmount}`}
+            icon={<AlertTriangle className="h-6 w-6" />}
+            description="Total outstanding"
+            className="bg-orange-50 border-orange-100"
           />
           <StatsCard
-            title="Low Stock Items"
-            value={stats.lowStockItems.toString()}
-            icon={<AlertTriangle className="h-6 w-6" />}
-            description="Needs attention"
-            className="bg-orange-50 border-orange-100"
+            title="Pending Orders"
+            value={stats.pendingOrders.toString()}
+            icon={<ClipboardList className="h-6 w-6" />}
+            description="Orders pending"
+            className="bg-purple-50 border-purple-100"
           />
         </div>
 
@@ -145,56 +144,6 @@ const Dashboard = () => {
                   ))
                 ) : (
                   <p className="text-center text-muted-foreground py-4">No recent orders</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Low Stock Products */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg font-medium">Low Stock Alert</CardTitle>
-              <Link to="/products">
-                <Button variant="ghost" size="sm" className="gap-1">
-                  View All <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {lowStockProducts.length > 0 ? (
-                  lowStockProducts.map((product) => {
-                    // Calculate total stock across all batches
-                    const totalStock = product.stock_batches 
-                      ? product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
-                      : (product.stock || 0);
-                      
-                    return (
-                      <div key={product.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
-                            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {product.category} · ₹{product.price}
-                            </p>
-                          </div>
-                        </div>
-                        <div>
-                          <span className={cn(
-                            "text-xs px-2 py-1 rounded-full",
-                            totalStock <= 5 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
-                          )}>
-                            {totalStock} left
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">All products have sufficient stock</p>
                 )}
               </div>
             </CardContent>

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
-import { db, customersCollection, productsCollection, ordersCollection } from '@/firebase';
-import { Product, Order } from '@/types';
+import { db, customersCollection, productsCollection, ordersCollection, invoicesCollection } from '@/firebase';
+import { Product, Order, Invoice } from '@/types';
 
 // Define DashboardStats interface locally if not exported from types
 interface DashboardStats {
   totalSales: number;
   totalOrders: number;
   totalCustomers: number;
-  lowStockItems: number;
+  outstandingAmount: number;
+  pendingOrders: number;
 }
 
 // Define a stronger typed version of Order with specific date type
@@ -21,12 +22,12 @@ export const useDashboardStats = () => {
     totalSales: 0,
     totalOrders: 0,
     totalCustomers: 0,
-    lowStockItems: 0
+    outstandingAmount: 0,
+    pendingOrders: 0
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [salesData, setSalesData] = useState<{ name: string; sales: number }[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -36,25 +37,6 @@ export const useDashboardStats = () => {
         // Get total customers
         const customersSnapshot = await getDocs(customersCollection);
         const totalCustomers = customersSnapshot.size;
-        
-        // Get products with low stock (total quantity across batches <= 10)
-        const productsSnapshot = await getDocs(productsCollection);
-        const productsData = productsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.().toISOString() || new Date().toISOString()
-        } as Product));
-        
-        // Calculate low stock items
-        const lowStockItems = productsData.filter(product => {
-          // Calculate total stock across batches
-          const totalStock = product.stock_batches 
-            ? product.stock_batches.reduce((sum, batch) => sum + batch.quantity, 0)
-            : (product.stock || 0);
-          return totalStock <= 10;
-        });
-        
-        setLowStockProducts(lowStockItems);
         
         // Get recent orders
         const ordersQuery = query(ordersCollection, orderBy("createdAt", "desc"), limit(5));
@@ -106,28 +88,45 @@ export const useDashboardStats = () => {
             createdAt
           } as ProcessedOrder;
         });
+
+        // Get all invoices
+        const invoicesQuery = query(invoicesCollection, orderBy("createdAt", "desc"));
+        const invoicesSnapshot = await getDocs(invoicesQuery);
         
-        // Filter orders for last 30 days
-        const recentOrdersData = allOrdersData.filter(order => {
-          return order.createdAt >= thirtyDaysAgo;
-        });
-        
-        // Calculate total sales from orders
-        const totalSales = recentOrdersData.reduce((sum, order) => sum + (order.total || 0), 0);
-        
-        // Generate weekly sales data
-        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const weeklySalesMap = new Map(dayNames.map(day => [day, 0]));
-        
-        // Group all orders by day of week
-        allOrdersData.forEach(order => {
-          if (!order.createdAt) return;
+        // Process invoices and calculate totals
+        let totalSales = 0;
+        let outstandingAmount = 0;
+        const weeklySalesMap = new Map([
+          ["Sun", 0], ["Mon", 0], ["Tue", 0], ["Wed", 0],
+          ["Thu", 0], ["Fri", 0], ["Sat", 0]
+        ]);
+
+        invoicesSnapshot.docs.forEach(doc => {
+          const invoice = doc.data() as Invoice;
+          const createdAt = invoice.createdAt;
+          if (!createdAt) return;
           
-          const dayName = dayNames[order.createdAt.getDay()];
-          weeklySalesMap.set(dayName, (weeklySalesMap.get(dayName) || 0) + (order.total || 0));
+          const invoiceDate = typeof createdAt === 'object' && 'toDate' in createdAt
+            ? createdAt.toDate()
+            : new Date(createdAt);
+
+          // Only include invoices from last 30 days for total sales
+          if (invoiceDate >= thirtyDaysAgo) {
+            totalSales += invoice.total || 0;
+          }
+
+          // Always include outstanding amount
+          outstandingAmount += invoice.outstandingAmount || 0;
+
+          // Add to weekly sales data
+          const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][invoiceDate.getDay()];
+          weeklySalesMap.set(dayName, (weeklySalesMap.get(dayName) || 0) + (invoice.total || 0));
         });
         
-        // Convert map to array format needed for chart
+        // Count pending orders
+        const pendingOrders = allOrdersData.filter(order => order.status === 'pending').length;
+        
+        // Convert weekly sales map to array and reorder to start with Monday
         const weeklySalesData = Array.from(weeklySalesMap.entries())
           .map(([name, sales]) => ({ name, sales }));
         
@@ -142,14 +141,17 @@ export const useDashboardStats = () => {
         // Set final stats
         setStats({
           totalSales,
-          totalOrders: recentOrdersData.length,
+          totalOrders: allOrdersData.length,
           totalCustomers,
-          lowStockItems: lowStockItems.length
+          outstandingAmount,
+          pendingOrders
         });
         
         console.log('Dashboard stats:', {
           totalSales,
-          totalOrders: recentOrdersData.length,
+          totalOrders: allOrdersData.length,
+          outstandingAmount,
+          pendingOrders,
           salesData: orderedWeeklySalesData
         });
       } catch (error) {
@@ -162,5 +164,5 @@ export const useDashboardStats = () => {
     fetchDashboardData();
   }, []);
 
-  return { stats, isLoading, salesData, recentOrders, lowStockProducts };
+  return { stats, isLoading, salesData, recentOrders };
 };

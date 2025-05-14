@@ -30,25 +30,6 @@ The system now includes a robust invoice management system with PDF generation c
 3. Start development server: `npm run dev`
 4. Access the application at http://localhost:8080
 
-## Project info
-
-**URL**: https://lovable.dev/projects/d8591d1a-b3cb-40ba-bc04-82090431fd48
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/d8591d1a-b3cb-40ba-bc04-82090431fd48) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
 Follow these steps:
 
@@ -89,14 +70,9 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Firebase
 
-## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/d8591d1a-b3cb-40ba-bc04-82090431fd48) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 

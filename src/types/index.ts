@@ -36,6 +36,7 @@ export interface OrderItem {
   quantity: number;
   productId?: string;
   total?: number;
+  costPrice?: number;
 }
 
 export interface Order {

@@ -39,6 +39,7 @@ export interface OrderItem {
   price: number;
   originalPrice?: number;  // Store the original product price
   customPrice?: number | null;  // Store custom price if modified for this order
+  costPrice?: number | null;
 }
 
 export interface Order {

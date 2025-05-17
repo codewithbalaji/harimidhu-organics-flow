@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,22 +16,32 @@ import { toast } from "sonner";
 import { formatInvoiceNumber } from "@/components/invoices/InvoiceGenerator";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { addDays } from "date-fns";
+import { DateRange } from 'react-day-picker';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 
 const ProfitLossReport = () => {
-  const [date, setDate] = useState({
+  const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (date.from && date.to) {
+    if (date?.from && date?.to) {
       fetchInvoices();
     }
   }, [date]);
 
+  useEffect(() => {
+    applySearchFilter(invoices, searchQuery);
+  }, [invoices, searchQuery]);
+
   const fetchInvoices = async () => {
+    if (!date?.from || !date?.to) return;
     try {
       setIsLoading(true);
       const startDate = new Date(date.from);
@@ -66,11 +74,25 @@ const ProfitLossReport = () => {
     }
   };
 
+  const applySearchFilter = (data: Invoice[], search: string) => {
+    if (!search.trim()) {
+      setFilteredInvoices(data);
+      return;
+    }
+    const lower = search.trim().toLowerCase();
+    setFilteredInvoices(
+      data.filter(inv =>
+        inv.customerName?.toLowerCase().includes(lower) ||
+        inv.invoiceNumber?.toLowerCase?.().includes(lower)
+      )
+    );
+  };
+
   const calculateMaterialCost = (invoice: Invoice): number => {
     if (!invoice.items) return 0;
     return invoice.items.reduce((total, item) => {
       // Get the cost price from the item's cost_price property
-      const costPrice = item.originalPrice || 0;
+      const costPrice = item.costPrice|| 0;
       return total + costPrice * item.quantity;
     }, 0);
   };
@@ -92,15 +114,24 @@ const ProfitLossReport = () => {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 justify-between flex-wrap">
             <DatePickerWithRange date={date} setDate={setDate} />
+            <div className="relative w-full max-w-xs ml-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by invoice number or customer name..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
 
           {isLoading ? (
             <div className="flex justify-center py-8">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-organic-primary"></div>
             </div>
-          ) : invoices.length > 0 ? (
+          ) : filteredInvoices.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -115,7 +146,7 @@ const ProfitLossReport = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((invoice, index) => {
+                  {filteredInvoices.map((invoice, index) => {
                     const materialCost = calculateMaterialCost(invoice);
                     const profit = calculateProfit(invoice);
                     const margin = calculateMargin(invoice);

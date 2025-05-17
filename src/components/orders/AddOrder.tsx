@@ -116,6 +116,14 @@ const AddOrder = () => {
       return;
     }
 
+    // Get cost price from the first available stock batch (FIFO)
+    let costPrice = 0;
+    if (product.stock_batches && product.stock_batches.length > 0) {
+      // Find the first batch with quantity > 0
+      const firstBatch = product.stock_batches.find(batch => batch.quantity > 0);
+      if (firstBatch) costPrice = firstBatch.cost_price;
+    }
+
     // Check if product already in items
     const existingItem = items.find(item => item.productId === selectedProduct);
     
@@ -132,7 +140,8 @@ const AddOrder = () => {
           ? { 
               ...item, 
               quantity: newQuantity,
-              price: item.customPrice || product.price
+              price: item.customPrice || product.price,
+              costPrice: costPrice
             } 
           : item
       ));
@@ -144,7 +153,8 @@ const AddOrder = () => {
         quantity: quantity,
         price: product.price,
         originalPrice: product.price,
-        customPrice: null
+        customPrice: null,
+        costPrice: costPrice
       };
       
       setItems([...items, newItem]);
@@ -237,7 +247,8 @@ const AddOrder = () => {
         deliveryAddress: selectedCustomer.address,
         items: items.map(item => ({
           ...item,
-          originalPrice: products.find(p => p.id === item.productId)?.price || item.price
+          originalPrice: products.find(p => p.id === item.productId)?.price || item.price,
+          costPrice: item.costPrice
         })),
         total: grandTotal,
         shippingCost,

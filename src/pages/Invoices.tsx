@@ -143,8 +143,14 @@ const Invoices = () => {
       // Generate and download the PDF
       const doc = await generateInvoicePdf(invoice);
       
-      // Save the PDF with the invoice ID
-      doc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`);
+      // Sanitize customer name for filename
+      const sanitizedCustomerName = invoice.customerName
+        .replace(/[^a-zA-Z0-9]/g, '_') // Replace special chars with underscore
+        .replace(/_+/g, '_') // Replace multiple underscores with single
+        .replace(/^_|_$/g, '') // Remove leading/trailing underscores
+      
+      // Save the PDF with customer name and invoice number
+      doc.save(`${sanitizedCustomerName}-${formatInvoiceNumber(invoice.invoiceNumber, invoice.createdAt)}.pdf`);
       
       toast.success(`Invoice downloaded successfully!`);
     } catch (error) {

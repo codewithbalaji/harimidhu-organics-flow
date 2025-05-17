@@ -75,7 +75,7 @@ const Dashboard = () => {
         {/* Sales Chart */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-medium">Weekly Sales</CardTitle>
+            <CardTitle className="text-lg font-medium">Monthly Sales</CardTitle>
             <Button variant="outline" size="sm">
               View Report
             </Button>

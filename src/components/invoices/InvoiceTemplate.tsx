@@ -168,8 +168,14 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
       // Use the loaded company info for the PDF
       const doc = await generateInvoicePdf(invoice, companyInfo)
       
-      // Save the PDF
-      doc.save(`Invoice-${invoice.id.slice(0, 6)}.pdf`)
+      // Sanitize customer name for filename
+      const sanitizedCustomerName = invoice.customerName
+        .replace(/[^a-zA-Z0-9]/g, '_') // Replace special chars with underscore
+        .replace(/_+/g, '_') // Replace multiple underscores with single
+        .replace(/^_|_$/g, '') // Remove leading/trailing underscores
+      
+      // Save the PDF with invoice ID and customer name
+      doc.save(`${invoice.invoiceNumber}_${sanitizedCustomerName}.pdf`)
       toast.success('Invoice downloaded successfully!')
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -461,4 +467,4 @@ export default function InvoiceTemplate({ invoice, readOnly = true }: InvoiceTem
       </div>
     </div>
   )
-} 
+}

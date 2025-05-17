@@ -96,10 +96,8 @@ export const useDashboardStats = () => {
         // Process invoices and calculate totals
         let totalSales = 0;
         let outstandingAmount = 0;
-        const weeklySalesMap = new Map([
-          ["Sun", 0], ["Mon", 0], ["Tue", 0], ["Wed", 0],
-          ["Thu", 0], ["Fri", 0], ["Sat", 0]
-        ]);
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthlySalesMap = new Map(monthNames.map(month => [month, 0]));
 
         invoicesSnapshot.docs.forEach(doc => {
           const invoice = doc.data() as Invoice;
@@ -112,31 +110,29 @@ export const useDashboardStats = () => {
 
           // Only include invoices from last 30 days for total sales
           if (invoiceDate >= thirtyDaysAgo) {
-            totalSales += invoice.total || 0;
+            // Calculate subtotal from invoice items only
+            const subtotal = invoice.items?.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0) || 0;
+            totalSales += subtotal;
+
+            // Add to monthly sales data (using items subtotal)
+            const monthName = monthNames[invoiceDate.getMonth()];
+            monthlySalesMap.set(monthName, (monthlySalesMap.get(monthName) || 0) + subtotal);
           }
 
           // Always include outstanding amount
           outstandingAmount += invoice.outstandingAmount || 0;
-
-          // Add to weekly sales data
-          const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][invoiceDate.getDay()];
-          weeklySalesMap.set(dayName, (weeklySalesMap.get(dayName) || 0) + (invoice.total || 0));
         });
         
         // Count pending orders
         const pendingOrders = allOrdersData.filter(order => order.status === 'pending').length;
         
-        // Convert weekly sales map to array and reorder to start with Monday
-        const weeklySalesData = Array.from(weeklySalesMap.entries())
-          .map(([name, sales]) => ({ name, sales }));
+        // Convert monthly sales map to array
+        const monthlySalesData = monthNames.map(month => ({
+          name: month,
+          sales: monthlySalesMap.get(month) || 0
+        }));
         
-        // Reorder days to start with Monday
-        const orderedWeeklySalesData = [
-          ...weeklySalesData.slice(1, 7),
-          weeklySalesData[0]
-        ];
-        
-        setSalesData(orderedWeeklySalesData);
+        setSalesData(monthlySalesData);
         
         // Set final stats
         setStats({

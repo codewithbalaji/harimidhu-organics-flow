@@ -4,6 +4,11 @@ A powerful, full-featured management system tailored for **Harimidhu Organics**.
 
 ---
 
+## Working now 
+* Reports - Profit & Loss Report
+- need to fix Material Cost	( while creating order cost price field need to added and invoice also )
+
+
 ## 🚀 Features
 
 * 📦 Product Management

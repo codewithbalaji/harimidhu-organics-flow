@@ -1,8 +1,6 @@
-
-import { useState } from "react";
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,22 +11,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function DashboardHeader({ title }: { title: string }) {
-  const [searchQuery, setSearchQuery] = useState("");
+
   
   return (
     <header className="flex items-center justify-between p-4 border-b">
       <h1 className="text-2xl font-bold text-organic-dark">{title}</h1>
       
       <div className="flex items-center space-x-4">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="pl-9 w-64"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+       
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
